@@ -7,6 +7,44 @@ description: Build decentralized storage applications using the Shelby Protocol 
 
 The Shelby Protocol SDK enables decentralized blob storage on the Aptos blockchain. This skill covers the core SDK and cross-chain integrations (Ethereum Kit, Solana Kit).
 
+## Critical Warnings
+
+### `@shelby-protocol/react` is NOT Compatible with Cross-Chain Kits
+
+**The `@shelby-protocol/react` package (including `useUploadBlobs`) is designed ONLY for native Aptos wallets.** It expects `signAndSubmitTransaction` from `@aptos-labs/wallet-adapter-react`, which has a different signature than the cross-chain kits.
+
+If you are using **Solana Kit** or **Ethereum Kit**, you **CANNOT** use:
+- `useUploadBlobs` from `@shelby-protocol/react`
+- Any hooks from `@shelby-protocol/react`
+
+Instead, you must implement manual upload using lower-level SDK APIs. See the "Manual Upload for Cross-Chain Wallets" section in `references/solana-kit.md` or `references/ethereum-kit.md`.
+
+### Package Versions
+
+Use the correct versions (as of 2025):
+```bash
+"@shelby-protocol/sdk": "^0.0.9"
+"@shelby-protocol/solana-kit": "^0.2.0"
+"@aptos-labs/ts-sdk": "^5.1.0"  # Required as direct dependency
+```
+
+### API Response Field Names
+
+When listing blobs with `getAccountBlobs()`, the response uses:
+- `blobNameSuffix` (not `name` or `blobName`)
+- `creationMicros` (not `created_at`)
+- `expirationMicros` (not `expiration`)
+
+```typescript
+interface BlobData {
+  name: string;           // Full blob name with account prefix
+  blobNameSuffix: string; // The blob name without account prefix (use this)
+  size: number;
+  creationMicros: number; // Microseconds since epoch
+  expirationMicros: number;
+}
+```
+
 ## Installation
 
 ```bash
@@ -284,8 +322,24 @@ const { transaction } = await client.coordination.deleteBlob({
 const blobs = await client.coordination.getAccountBlobs({
   account: accountAddress,
   pagination: { limit: 10, offset: 0 },
-  orderBy: { created_at: "desc" },
 });
+
+// Response structure:
+// blobs: Array<{
+//   name: string;           // Full name with account prefix
+//   blobNameSuffix: string; // Just the blob name (use this)
+//   size: number;
+//   creationMicros: number;
+//   expirationMicros: number;
+// }>
+
+// Example: Map to a cleaner structure
+const files = blobs.map(blob => ({
+  name: blob.blobNameSuffix,
+  size: blob.size,
+  createdAt: new Date(blob.creationMicros / 1000),
+  expiresAt: new Date(blob.expirationMicros / 1000),
+}));
 ```
 
 ## Error Handling
@@ -325,3 +379,4 @@ For detailed API documentation, see:
 - `references/ethereum-kit.md` - Complete Ethereum integration guide (Node.js + React)
 - `references/solana-kit.md` - Complete Solana integration guide (Node.js + React)
 - `references/advanced.md` - Micropayments, erasure coding, streaming, low-level operations
+- `references/sdk-feedback.md` - Known issues and improvement recommendations for the SDK
