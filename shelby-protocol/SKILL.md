@@ -1,6 +1,6 @@
 ---
-name: shelby-protocol-sdk
-description: Build decentralized storage applications using the Shelby Protocol TypeScript SDK. Use when creating apps that upload, download, or manage blob storage on the Shelby network, when working with Shelby clients (ShelbyClient, ShelbyBlobClient, ShelbyRPCClient), or when integrating Shelby with Ethereum/Solana wallets via cross-chain kits.
+name: shelby-protocol
+description: Build decentralized storage applications with the Shelby Protocol SDK. Use when working with @shelby-protocol/sdk, @shelby-protocol/react, @shelby-protocol/ethereum-kit, or @shelby-protocol/solana-kit.
 ---
 
 # Shelby Protocol SDK
@@ -51,6 +51,9 @@ interface BlobData {
 # Core SDK
 pnpm install @shelby-protocol/sdk
 
+# For React (Aptos wallets ONLY - see warning above)
+pnpm install @shelby-protocol/react @tanstack/react-query @aptos-labs/wallet-adapter-react
+
 # For Ethereum integration
 pnpm install @shelby-protocol/ethereum-kit
 
@@ -96,6 +99,59 @@ while (true) {
 }
 const data = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
 ```
+
+## Quick Start - React Hooks (Aptos Wallets Only)
+
+**Warning:** These hooks only work with native Aptos wallets. For Ethereum/Solana, use the cross-chain kits instead.
+
+```tsx
+import { ShelbyClientProvider, useAccountBlobs, useUploadBlobs } from "@shelby-protocol/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { Network } from "@aptos-labs/ts-sdk";
+
+const queryClient = new QueryClient();
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ShelbyClientProvider network={Network.SHELBYNET}>
+        <StorageComponent />
+      </ShelbyClientProvider>
+    </QueryClientProvider>
+  );
+}
+
+function StorageComponent() {
+  const { account, signAndSubmitTransaction } = useWallet();
+
+  // List blobs for current account
+  const { data: blobs, isLoading } = useAccountBlobs({
+    account: account?.address,
+  });
+
+  // Upload blobs
+  const { mutateAsync: uploadBlobs } = useUploadBlobs({
+    signAndSubmitTransaction,
+  });
+
+  const handleUpload = async (file: File) => {
+    const data = new Uint8Array(await file.arrayBuffer());
+    await uploadBlobs({
+      blobs: [{ blobData: data, blobName: file.name }],
+      expirationMicros: Date.now() * 1000 + 86400_000_000,
+    });
+  };
+
+  return (
+    <div>
+      {isLoading ? "Loading..." : `${blobs?.length ?? 0} blobs`}
+    </div>
+  );
+}
+```
+
+See `references/react.md` for full React hooks documentation.
 
 ## Quick Start - Ethereum Kit
 
@@ -376,6 +432,7 @@ curl https://api.shelbynet.shelby.xyz/shelby/v1/blobs/{account_address}/{blob_na
 For detailed API documentation, see:
 
 - `references/api-reference.md` - Full API documentation for ShelbyClient, ShelbyBlobClient, ShelbyRPCClient
+- `references/react.md` - React hooks documentation (Aptos wallets only)
 - `references/ethereum-kit.md` - Complete Ethereum integration guide (Node.js + React)
 - `references/solana-kit.md` - Complete Solana integration guide (Node.js + React)
 - `references/advanced.md` - Micropayments, erasure coding, streaming, low-level operations
