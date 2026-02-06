@@ -2,6 +2,21 @@
 
 Complete reference for all Shelby CLI commands.
 
+## Table of Contents
+
+- [shelby init](#shelby-init)
+- [shelby account](#shelby-account)
+- [shelby config](#shelby-config)
+- [shelby context](#shelby-context)
+- [shelby upload](#shelby-upload)
+- [shelby download](#shelby-download)
+- [shelby delete](#shelby-delete)
+- [shelby faucet](#shelby-faucet)
+- [shelby localnet](#shelby-localnet)
+- [shelby commitment](#shelby-commitment)
+- [Environment Variables](#environment-variables)
+- [Exit Codes](#exit-codes)
+
 ## shelby init
 
 Initialize Shelby CLI configuration.
@@ -214,6 +229,7 @@ shelby context update <name> [options]
 |--------|-------------|
 | `--network <network>` | New network |
 | `--rpc-url <url>` | New RPC URL |
+| `--indexer-api-key <key>` | Indexer API key |
 
 ### shelby context list
 
@@ -253,43 +269,49 @@ shelby context delete <name>
 
 ## shelby upload
 
-Upload files to Shelby storage.
+Upload files to Shelby storage. Takes two positional arguments: `<source>` (local file/directory) and `<destination>` (blob name/prefix).
 
 ```bash
-shelby upload <path> [options]
+shelby upload <source> <destination> [options]
 ```
 
 **Arguments:**
 | Argument | Description |
 |----------|-------------|
-| `<path>` | File or directory to upload |
+| `<source>` | Local file or directory path |
+| `<destination>` | Destination blob name or prefix |
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `-n, --name <name>` | Blob name (default: filename) |
-| `-e, --expiration <exp>` | Expiration time (required) |
+| `-e, --expiration <datetime>` | Expiration date/time (required) |
 | `-r, --recursive` | Upload directory recursively |
-| `--prefix <prefix>` | Prefix for blob names |
+| `--assume-yes` | Skip confirmation prompts |
+| `--output-commitments <file>` | Save commitment data to file |
 
 **Expiration Formats:**
 | Format | Example | Description |
 |--------|---------|-------------|
-| Duration | `7d`, `24h`, `30m`, `1w` | Relative duration |
+| Natural language | `"tomorrow"`, `"in 2 days"`, `"next Friday"` | Parsed by chrono-node |
 | ISO Date | `2025-12-31` | Specific date |
 | ISO DateTime | `2025-12-31T23:59:59Z` | Specific datetime |
 | Unix timestamp | `1735689600` | Seconds since epoch |
 
+**Note:** Duration formats like `7d`, `24h` are NOT supported. Use `"in 7 days"`, `"in 24 hours"` instead.
+
 **Examples:**
 ```bash
 # Upload single file
-shelby upload ./myfile.txt -n "data/myfile.txt" -e 7d
+shelby upload ./myfile.txt data/myfile.txt -e "in 7 days"
 
-# Upload directory
-shelby upload ./images -r --prefix "backups/images/" -e 30d
+# Upload directory recursively
+shelby upload ./images/ backups/images/ -e "in 30 days" -r --assume-yes
 
 # Upload with specific expiration date
-shelby upload ./important.pdf -n "docs/important.pdf" -e "2025-12-31"
+shelby upload ./important.pdf docs/important.pdf -e "2025-12-31"
+
+# Upload and save commitments
+shelby upload ./data.bin data.bin -e "tomorrow" --output-commitments ./commitments.json
 ```
 
 **Output:**
@@ -305,40 +327,41 @@ Upload complete!
 
 ## shelby download
 
-Download files from Shelby storage.
+Download files from Shelby storage. Takes two positional arguments: `<source>` (blob name/prefix) and `<destination>` (local path).
 
 ```bash
-shelby download <blob-name> [options]
+shelby download <source> <destination> [options]
 ```
 
 **Arguments:**
 | Argument | Description |
 |----------|-------------|
-| `<blob-name>` | Name of blob to download (supports wildcards) |
+| `<source>` | Source blob name or prefix |
+| `<destination>` | Destination file or directory path |
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `-o, --output <path>` | Output file/directory path |
-| `-r, --recursive` | Download matching prefix recursively |
-| `-f, --force` | Overwrite existing files |
-| `--allow-concurrent` | Allow concurrent downloads |
-| `-a, --account <addr>` | Download from specific account address |
+| `-r, --recursive` | Download all blobs matching the prefix |
+| `-f, --force` | Overwrite existing files/directories |
+| `--allow-concurrent` | Bypass download lock (micropayments may not work correctly) |
 
 **Examples:**
 ```bash
 # Download single file
-shelby download myfile.txt -o ./downloaded.txt
+shelby download myfile.txt ./downloaded.txt
 
-# Download to directory
-shelby download "images/*" -o ./local-images -r
-
-# Download from another account
-shelby download public-data.json -a 0x1234...abcd -o ./data.json
+# Download directory recursively
+shelby download images/ ./local-images -r
 
 # Force overwrite
-shelby download config.json -o ./config.json -f
+shelby download config.json ./config.json -f
 ```
+
+**Notes:**
+- Only one download can run at a time (lock file in `~/.shelby/`). Use `--allow-concurrent` to bypass.
+- For recursive downloads, the source should be a prefix (e.g., `images/`).
+- The destination directory's parent must exist.
 
 **Output:**
 ```
@@ -351,34 +374,39 @@ Download complete!
 
 ## shelby delete
 
-Delete files from Shelby storage.
+Delete files from Shelby storage. Takes one positional argument: `<destination>` (blob name or prefix).
 
 ```bash
-shelby delete <blob-name> [options]
+shelby delete <destination> [options]
 ```
 
 **Arguments:**
 | Argument | Description |
 |----------|-------------|
-| `<blob-name>` | Name of blob to delete (supports wildcards) |
+| `<destination>` | Blob name to delete, or prefix for recursive deletion |
 
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `-r, --recursive` | Delete matching prefix recursively |
-| `-y, --yes` | Skip confirmation prompt |
+| `-r, --recursive` | Delete all blobs matching the prefix |
+| `--assume-yes` | Skip confirmation prompt |
 
 **Examples:**
 ```bash
 # Delete single file
 shelby delete myfile.txt
 
-# Delete with pattern
-shelby delete "temp/*" -r -y
+# Delete all blobs under a prefix (must end with /)
+shelby delete temp/ -r --assume-yes
 
 # Interactive delete (prompts for confirmation)
 shelby delete important-file.txt
 ```
+
+**Notes:**
+- For recursive deletion, the destination must end with `/`.
+- Without `--assume-yes`, you'll be prompted to confirm.
+- Deletion is on-chain only (removes metadata); blob data expires from storage nodes.
 
 **Output:**
 ```
@@ -537,7 +565,7 @@ Commitments are used for verifying file integrity and for advanced upload flows 
 
 **Example:**
 ```bash
-SHELBY_CONTEXT=local shelby upload ./file.txt -n "file.txt" -e 7d
+SHELBY_CONTEXT=local shelby upload ./file.txt file.txt -e "in 7 days"
 ```
 
 ## Exit Codes

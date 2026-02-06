@@ -2,6 +2,19 @@
 
 Complete guide for integrating Shelby Protocol with Solana wallets.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Entry Points](#entry-points)
+- [Node.js Usage](#nodejs-usage)
+- [React Usage](#react-usage)
+- [API Reference](#api-reference)
+- [How It Works](#how-it-works)
+- [Error Handling](#error-handling)
+- [Best Practices](#best-practices)
+- [Exports](#exports)
+
 ## Overview
 
 The Solana Kit enables Solana wallets to own and manage data on the Shelby network through **Derivable Account Abstraction (DAA)**. It provides both Node.js and React entry points.
@@ -276,100 +289,22 @@ function StorageComponent() {
 }
 ```
 
-### Manual Upload for Cross-Chain Wallets (Required)
+### Upload with React Hooks
 
-**IMPORTANT:** The `@shelby-protocol/react` package (`useUploadBlobs`) is NOT compatible with Solana Kit. It expects Aptos wallet signatures. You MUST implement manual upload using lower-level SDK APIs.
-
-The upload process for Solana Kit involves 4 steps:
-1. Generate commitments (merkle root) using `ClayErasureCodingProvider`
-2. Create a register blob payload with `ShelbyBlobClient.createRegisterBlobPayload`
-3. Sign and submit the registration transaction
-4. Upload the blob data to RPC with `client.rpc.putBlob`
+The `useUploadBlobs` hook from `@shelby-protocol/react` works directly with the `WalletAdapterSigner` returned by `useStorageAccount`. No manual upload implementation is needed.
 
 ```tsx
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useStorageAccount, Network } from "@shelby-protocol/solana-kit/react";
-import { ShelbyClient, ShelbyBlobClient, ClayErasureCodingProvider, generateCommitments } from "@shelby-protocol/sdk/browser";
+import { ShelbyClientProvider, useUploadBlobs } from "@shelby-protocol/react";
+import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { AccountAddress } from "@aptos-labs/ts-sdk";
-import { useMemo } from "react";
 
-// Custom upload hook for Solana Kit
-function useUpload(client: ShelbyClient, storageAccountAddress: string | null, signAndSubmitTransaction: any) {
-  const [isUploading, setIsUploading] = useState(false);
-  const providerRef = useRef<ClayErasureCodingProvider | null>(null);
-  const providerPromiseRef = useRef<Promise<ClayErasureCodingProvider> | null>(null);
-
-  // Initialize erasure coding provider (lazy singleton)
-  const getProvider = useCallback(async () => {
-    if (providerRef.current) return providerRef.current;
-    if (!providerPromiseRef.current) {
-      providerPromiseRef.current = ClayErasureCodingProvider.create();
-    }
-    providerRef.current = await providerPromiseRef.current;
-    return providerRef.current;
-  }, []);
-
-  // Pre-initialize on mount for better UX
-  useEffect(() => {
-    getProvider().catch(console.error);
-  }, [getProvider]);
-
-  const upload = useCallback(async (file: File, blobName: string, expirationMicros: number) => {
-    if (!storageAccountAddress || !signAndSubmitTransaction) {
-      throw new Error("Wallet not connected");
-    }
-
-    setIsUploading(true);
-    try {
-      const provider = await getProvider();
-      const arrayBuffer = await file.arrayBuffer();
-      const blobData = new Uint8Array(arrayBuffer);
-
-      // Step 1: Generate commitments (merkle root)
-      const commitments = await generateCommitments(provider, blobData);
-
-      // Step 2: Create the register blob payload
-      const accountAddr = AccountAddress.from(storageAccountAddress);
-      const numChunksets = commitments.chunkset_commitments.length;
-      const registerPayload = ShelbyBlobClient.createRegisterBlobPayload({
-        deployer: client.config.deployer,
-        account: accountAddr,
-        blobName,
-        blobSize: blobData.length,
-        blobMerkleRoot: commitments.blob_merkle_root,
-        expirationMicros,
-        numChunksets,
-      });
-
-      // Step 3: Sign and submit the registration transaction
-      await signAndSubmitTransaction({
-        data: registerPayload as any,
-      });
-
-      // Step 4: Upload the blob data to RPC
-      await client.rpc.putBlob({
-        account: storageAccountAddress,
-        blobName,
-        blobData,
-      });
-
-      return `https://api.shelbynet.shelby.xyz/shelby/v1/blobs/${storageAccountAddress}/${blobName}`;
-    } finally {
-      setIsUploading(false);
-    }
-  }, [client, storageAccountAddress, signAndSubmitTransaction, getProvider]);
-
-  return { upload, isUploading };
-}
-
-// Example component using the hook
 function FileUploader() {
   const { publicKey, signMessage, signIn } = useWallet();
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const shelbyClient = useMemo(() => new ShelbyClient({
     network: Network.SHELBYNET,
@@ -391,21 +326,24 @@ function FileUploader() {
     wallet: adaptedWallet,
   });
 
-  const { upload, isUploading } = useUpload(
-    shelbyClient,
-    storageAccountAddress?.toString() || null,
-    signAndSubmitTransaction
-  );
+  // Hook takes optional client; mutation takes signer
+  const { mutateAsync: uploadBlobs, isPending } = useUploadBlobs({
+    client: shelbyClient,
+  });
 
   const handleUpload = async (file: File) => {
-    setError(null);
-    try {
-      const expirationMicros = Date.now() * 1000 + 7 * 24 * 3600 * 1_000_000; // 7 days
-      const url = await upload(file, file.name, expirationMicros);
-      setUploadedUrl(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    }
+    if (!storageAccountAddress || !signAndSubmitTransaction) return;
+
+    const buffer = await file.arrayBuffer();
+    await uploadBlobs({
+      signer: { account: storageAccountAddress, signAndSubmitTransaction },
+      blobs: [{ blobName: file.name, blobData: new Uint8Array(buffer) }],
+      expirationMicros: Date.now() * 1000 + 7 * 24 * 3600 * 1_000_000, // 7 days
+    });
+
+    setUploadedUrl(
+      `https://api.shelbynet.shelby.xyz/shelby/v1/blobs/${storageAccountAddress}/${file.name}`
+    );
   };
 
   return (
@@ -413,10 +351,9 @@ function FileUploader() {
       <input
         type="file"
         onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
-        disabled={!publicKey || isUploading}
+        disabled={!publicKey || isPending}
       />
-      {isUploading && <p>Uploading...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {isPending && <p>Uploading...</p>}
       {uploadedUrl && <a href={uploadedUrl}>View uploaded file</a>}
     </div>
   );

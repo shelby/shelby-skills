@@ -2,6 +2,17 @@
 
 Complete API documentation for the core Shelby Protocol TypeScript SDK.
 
+## Table of Contents
+
+- [ShelbyClient](#shelbyclient)
+- [ShelbyNodeClient](#shelbynodeclient)
+- [ShelbyBlobClient](#shelbyblobclient)
+- [ShelbyRPCClient](#shelbyrpcclient)
+- [Types](#types)
+- [Error Handling](#error-handling)
+- [Constants](#constants)
+- [Static Payload Methods](#static-payload-methods)
+
 ## ShelbyClient
 
 The main client that combines blockchain operations (coordination) and storage operations (RPC).
@@ -111,6 +122,26 @@ const hash: string = await client.fundAccountWithAPT({
   amount: number,
 });
 ```
+
+---
+
+## ShelbyNodeClient
+
+Node.js-specific subclass of `ShelbyClient` with additional server-side functionality.
+
+### Import
+
+```typescript
+import { ShelbyNodeClient } from "@shelby-protocol/sdk/node";
+```
+
+### Constructor
+
+```typescript
+const client = new ShelbyNodeClient(config: ShelbyClientConfig, provider?: ErasureCodingProvider);
+```
+
+`ShelbyNodeClient` extends `ShelbyClient` and is the recommended entry point for Node.js/server environments. For browser environments, use `ShelbyClient` from `@shelby-protocol/sdk/browser`.
 
 ---
 
@@ -380,11 +411,12 @@ const rest = await rpcClient.getBlob({
 interface ShelbyClientConfig {
   network: ShelbyNetwork;
   apiKey?: string;
-  aptos?: AptosSettings;
   deployer?: AccountAddress;
+  aptos?: AptosSettings;
   rpc?: ShelbyRPCConfig;
   indexer?: ShelbyIndexerConfig;
   faucet?: string;
+  gasStationApiKey?: string;
 }
 
 interface ShelbyRPCConfig {
@@ -418,6 +450,148 @@ interface ClayEncoding {
 ```typescript
 type ShelbyNetwork = "local" | "shelbynet";
 ```
+
+---
+
+## Error Handling
+
+### Error Code Helpers
+
+The SDK provides helper functions to identify common errors from transaction error messages:
+
+```typescript
+import {
+  ShelbyErrorCodes,
+  isBlobAlreadyExistsError,
+  isAccessDeniedError,
+  isBlobNotFoundError,
+  isBlobExpiredError,
+} from "@shelby-protocol/sdk";
+```
+
+**`ShelbyErrorCodes` enum:**
+
+| Code | Description |
+|------|-------------|
+| `E_BLOB_ALREADY_EXISTS` | Blob with this name already registered |
+| `E_ACCESS_DENIED` | Permission denied for this operation |
+| `E_BLOB_NOT_FOUND` | Blob does not exist |
+| `E_BLOB_EXPIRED` | Blob has expired |
+
+**Helper functions:**
+
+```typescript
+// All take an error message string and return boolean
+isBlobAlreadyExistsError(errorMessage: string): boolean
+isAccessDeniedError(errorMessage: string): boolean
+isBlobNotFoundError(errorMessage: string): boolean
+isBlobExpiredError(errorMessage: string): boolean
+```
+
+**Usage:**
+
+```typescript
+try {
+  await client.upload({ ... });
+} catch (error) {
+  if (isBlobAlreadyExistsError(error.message)) {
+    // Blob already registered - skip or overwrite
+  }
+  if (isBlobNotFoundError(error.message)) {
+    // Blob doesn't exist
+  }
+}
+```
+
+### StaleChannelStateError
+
+Thrown when a micropayment has stale channel state (HTTP 409):
+
+```typescript
+import { StaleChannelStateError } from "@shelby-protocol/sdk";
+
+try {
+  await rpcClient.getBlob({ ... });
+} catch (error) {
+  if (error instanceof StaleChannelStateError) {
+    const serverState = error.storedMicropayment;
+    // Sync local state and retry
+  }
+}
+```
+
+---
+
+## Constants
+
+### Key Addresses
+
+```typescript
+import {
+  SHELBY_DEPLOYER,
+  SHELBYUSD_TOKEN_ADDRESS,
+} from "@shelby-protocol/sdk";
+
+// SHELBY_DEPLOYER: "0xc63d6a5efb0080a6029403131715bd4971e1149f7cc099aac69bb0069b3ddbf5"
+// SHELBYUSD_TOKEN_ADDRESS: "0x249f5c642a63885ff88a5113b3ba0079840af5a1357706f8c7f3bfc5dd12511f"
+```
+
+### Chunk and Erasure Coding Defaults
+
+```typescript
+import {
+  DEFAULT_CHUNK_SIZE_BYTES,      // 1 MiB (1 * 1024 * 1024)
+  DEFAULT_CHUNKSET_SIZE_BYTES,   // 10 MiB (10 * 1024 * 1024)
+} from "@shelby-protocol/sdk";
+```
+
+**Default erasure coding parameters (Clay code):**
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| N (total chunks) | 16 | Total chunks per chunkset |
+| K (data chunks) | 10 | Data chunks needed to reconstruct |
+| D (helper nodes) | 13 | Helper nodes for efficient decoding |
+| M (parity chunks) | 6 | Parity chunks (N - K) |
+| Chunk size | 1 MiB | Size of each chunk |
+| Chunkset size | 10 MiB | Size of each chunkset (K * chunk size) |
+
+### ErasureCodingProvider Interface
+
+```typescript
+interface ErasureCodingProvider {
+  readonly config: ErasureCodingConfig;
+  encode(data: Uint8Array): ChunkCollection;
+  decode(available: Uint8Array[], config: DecodeConfig): ChunkCollection;
+  getChunkMerkleRoots(): Uint8Array[];
+}
+
+interface ErasureCodingConfig {
+  erasure_n: number;        // Total chunks
+  erasure_k: number;        // Data chunks
+  chunkSizeBytes: number;   // Chunk size in bytes
+}
+```
+
+### BlobCommitmentsSchema (v1.3)
+
+```typescript
+import { BlobCommitmentsSchema, COMMITMENT_SCHEMA_VERSION } from "@shelby-protocol/sdk";
+
+// COMMITMENT_SCHEMA_VERSION = "1.3"
+
+interface BlobCommitments {
+  schema_version: string;
+  raw_data_size: number;
+  blob_merkle_root: string;          // Hex string
+  chunkset_commitments: Array<{
+    chunkset_root: string;           // Hex string
+    chunk_commitments: string[];     // Array of K+M hex strings
+  }>;
+}
+```
+
+The blob merkle root is computed using a binary SHA-256 merkle tree over the chunkset roots. Missing right children are zero-padded.
 
 ---
 

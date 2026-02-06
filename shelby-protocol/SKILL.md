@@ -7,23 +7,26 @@ description: Build decentralized storage applications with the Shelby Protocol S
 
 The Shelby Protocol SDK enables decentralized blob storage on the Aptos blockchain. This skill covers the core SDK and cross-chain integrations (Ethereum Kit, Solana Kit).
 
-## Critical Warnings
+## Cross-Chain Wallet Support
 
-### `@shelby-protocol/react` is NOT Compatible with Cross-Chain Kits
+The `@shelby-protocol/react` hooks support **all wallet types** through the `Signer` type:
 
-**The `@shelby-protocol/react` package (including `useUploadBlobs`) is designed ONLY for native Aptos wallets.** It expects `signAndSubmitTransaction` from `@aptos-labs/wallet-adapter-react`, which has a different signature than the cross-chain kits.
+```typescript
+type Signer = AccountSigner | WalletAdapterSigner;
 
-If you are using **Solana Kit** or **Ethereum Kit**, you **CANNOT** use:
-- `useUploadBlobs` from `@shelby-protocol/react`
-- Any hooks from `@shelby-protocol/react`
+// AccountSigner = Aptos Account (for Node.js / direct key usage)
+// WalletAdapterSigner = { account, signAndSubmitTransaction } (for any wallet adapter)
+```
 
-Instead, you must implement manual upload using lower-level SDK APIs. See the "Manual Upload for Cross-Chain Wallets" section in `references/solana-kit.md` or `references/ethereum-kit.md`.
+The `useStorageAccount` hooks from `@shelby-protocol/ethereum-kit/react` and `@shelby-protocol/solana-kit/react` return a `signAndSubmitTransaction` function and `storageAccountAddress` that work directly as a `WalletAdapterSigner` with the React hooks.
 
 ### Package Versions
 
-Use the correct versions (as of 2025):
+Use the correct versions (as of 2026):
 ```bash
 "@shelby-protocol/sdk": "^0.0.9"
+"@shelby-protocol/react": "^0.0.5"
+"@shelby-protocol/ethereum-kit": "^0.1.1"
 "@shelby-protocol/solana-kit": "^0.2.0"
 "@aptos-labs/ts-sdk": "^5.1.0"  # Required as direct dependency
 ```
@@ -51,8 +54,8 @@ interface BlobData {
 # Core SDK
 pnpm install @shelby-protocol/sdk
 
-# For React (Aptos wallets ONLY - see warning above)
-pnpm install @shelby-protocol/react @tanstack/react-query @aptos-labs/wallet-adapter-react
+# For React hooks (works with Aptos, Ethereum, and Solana wallets)
+pnpm install @shelby-protocol/react @tanstack/react-query
 
 # For Ethereum integration
 pnpm install @shelby-protocol/ethereum-kit
@@ -100,22 +103,24 @@ while (true) {
 const data = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
 ```
 
-## Quick Start - React Hooks (Aptos Wallets Only)
+## Quick Start - React Hooks
 
-**Warning:** These hooks only work with native Aptos wallets. For Ethereum/Solana, use the cross-chain kits instead.
+The React hooks work with **any wallet type** through the `Signer` interface.
 
 ```tsx
 import { ShelbyClientProvider, useAccountBlobs, useUploadBlobs } from "@shelby-protocol/react";
+import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Network } from "@aptos-labs/ts-sdk";
 
 const queryClient = new QueryClient();
+const shelbyClient = new ShelbyClient({ network: Network.SHELBYNET });
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ShelbyClientProvider network={Network.SHELBYNET}>
+      <ShelbyClientProvider client={shelbyClient}>
         <StorageComponent />
       </ShelbyClientProvider>
     </QueryClientProvider>
@@ -130,14 +135,15 @@ function StorageComponent() {
     account: account?.address,
   });
 
-  // Upload blobs
+  // Upload blobs - hook takes optional client, mutation takes signer
   const { mutateAsync: uploadBlobs } = useUploadBlobs({
-    signAndSubmitTransaction,
+    client: shelbyClient,
   });
 
   const handleUpload = async (file: File) => {
     const data = new Uint8Array(await file.arrayBuffer());
     await uploadBlobs({
+      signer: { account: account?.address, signAndSubmitTransaction },
       blobs: [{ blobData: data, blobName: file.name }],
       expirationMicros: Date.now() * 1000 + 86400_000_000,
     });
@@ -181,6 +187,7 @@ await shelby.upload({
 
 ```tsx
 import { useStorageAccount, Network } from "@shelby-protocol/ethereum-kit/react";
+import { ShelbyClientProvider, useUploadBlobs } from "@shelby-protocol/react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { useWalletClient } from "wagmi";
 import { useMemo } from "react";
@@ -197,7 +204,17 @@ function StorageComponent() {
     wallet,
   });
 
-  // Storage account is automatically derived from ETH wallet + domain
+  // useUploadBlobs works with the WalletAdapterSigner from useStorageAccount
+  const { mutateAsync: uploadBlobs } = useUploadBlobs({ client: shelbyClient });
+
+  const handleUpload = async (file: File) => {
+    const data = new Uint8Array(await file.arrayBuffer());
+    await uploadBlobs({
+      signer: { account: storageAccountAddress, signAndSubmitTransaction },
+      blobs: [{ blobData: data, blobName: file.name }],
+      expirationMicros: Date.now() * 1000 + 86400_000_000,
+    });
+  };
 }
 ```
 
@@ -231,20 +248,40 @@ await shelby.upload({
 
 ```tsx
 import { useStorageAccount, Network } from "@shelby-protocol/solana-kit/react";
+import { ShelbyClientProvider, useUploadBlobs } from "@shelby-protocol/react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
-import { useWalletConnection } from "@solana/react-hooks";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useMemo } from "react";
 
 function StorageComponent() {
-  const { wallet } = useWalletConnection();
+  const { publicKey, signMessage, signIn } = useWallet();
   const shelbyClient = useMemo(() => new ShelbyClient({
     network: Network.SHELBYNET,
     apiKey: "AG-***",
   }), []);
 
+  const adaptedWallet = publicKey ? {
+    account: { address: publicKey },
+    signMessage,
+    signIn,
+  } : null;
+
   const { storageAccountAddress, signAndSubmitTransaction } = useStorageAccount({
     client: shelbyClient,
-    wallet,
+    wallet: adaptedWallet,
   });
+
+  // useUploadBlobs works with the WalletAdapterSigner from useStorageAccount
+  const { mutateAsync: uploadBlobs } = useUploadBlobs({ client: shelbyClient });
+
+  const handleUpload = async (file: File) => {
+    const data = new Uint8Array(await file.arrayBuffer());
+    await uploadBlobs({
+      signer: { account: storageAccountAddress, signAndSubmitTransaction },
+      blobs: [{ blobData: data, blobName: file.name }],
+      expirationMicros: Date.now() * 1000 + 86400_000_000,
+    });
+  };
 }
 ```
 
@@ -303,6 +340,9 @@ interface ShelbyClientConfig {
   // Optional: API key for authentication
   apiKey?: string;
 
+  // Optional: Custom deployer address
+  deployer?: AccountAddress;
+
   // Optional: Custom Aptos blockchain settings
   aptos?: AptosSettings;
 
@@ -317,6 +357,12 @@ interface ShelbyClientConfig {
     baseUrl?: string;
     apiKey?: string;
   };
+
+  // Optional: Custom faucet URL
+  faucet?: string;
+
+  // Optional: Gas station API key (for sponsored transactions in cross-chain kits)
+  gasStationApiKey?: string;
 }
 ```
 
@@ -403,14 +449,28 @@ const files = blobs.map(blob => ({
 Common errors and how to handle them:
 
 ```typescript
+import {
+  isBlobAlreadyExistsError,
+  isAccessDeniedError,
+  isBlobNotFoundError,
+  isBlobExpiredError,
+  StaleChannelStateError,
+} from "@shelby-protocol/sdk";
+
 try {
   await client.upload({ ... });
 } catch (error) {
-  if (error.message?.includes("EBLOB_NOT_FOUND")) {
+  if (isBlobNotFoundError(error.message)) {
     // Blob doesn't exist
   }
-  if (error.message?.includes("sub_status: Some(404)")) {
-    // Resource not found
+  if (isBlobAlreadyExistsError(error.message)) {
+    // Blob already registered
+  }
+  if (isAccessDeniedError(error.message)) {
+    // Permission denied
+  }
+  if (isBlobExpiredError(error.message)) {
+    // Blob has expired
   }
   if (error instanceof StaleChannelStateError) {
     // Micropayment channel state is stale
@@ -432,7 +492,7 @@ curl https://api.shelbynet.shelby.xyz/shelby/v1/blobs/{account_address}/{blob_na
 For detailed API documentation, see:
 
 - `references/api-reference.md` - Full API documentation for ShelbyClient, ShelbyBlobClient, ShelbyRPCClient
-- `references/react.md` - React hooks documentation (Aptos wallets only)
+- `references/react.md` - React hooks documentation (works with all wallet types)
 - `references/ethereum-kit.md` - Complete Ethereum integration guide (Node.js + React)
 - `references/solana-kit.md` - Complete Solana integration guide (Node.js + React)
 - `references/advanced.md` - Micropayments, erasure coding, streaming, low-level operations

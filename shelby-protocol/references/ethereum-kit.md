@@ -2,6 +2,18 @@
 
 Complete guide for integrating Shelby Protocol with Ethereum wallets.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Entry Points](#entry-points)
+- [Node.js Usage](#nodejs-usage)
+- [React Usage](#react-usage)
+- [API Reference](#api-reference)
+- [How It Works](#how-it-works)
+- [Error Handling](#error-handling)
+- [Best Practices](#best-practices)
+
 ## Overview
 
 The Ethereum Kit enables Ethereum wallets to own and manage data on the Shelby network through **Derivable Account Abstraction (DAA)**. It provides both Node.js and React entry points.
@@ -223,9 +235,11 @@ function StorageComponent() {
 
 ### File Upload Component
 
+The `useUploadBlobs` hook from `@shelby-protocol/react` works directly with the `WalletAdapterSigner` returned by `useStorageAccount`:
+
 ```tsx
 import { useStorageAccount, Network } from "@shelby-protocol/ethereum-kit/react";
-import { useUploadBlobs } from "@shelby-protocol/react";
+import { ShelbyClientProvider, useUploadBlobs } from "@shelby-protocol/react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { useWalletClient } from "wagmi";
 import { useMemo, useState } from "react";
@@ -244,20 +258,20 @@ function FileUploader() {
     wallet,
   });
 
+  // Hook takes optional client; mutation takes signer
   const { mutateAsync: uploadBlobs, isPending } = useUploadBlobs({
     client: shelbyClient,
-    signer: signAndSubmitTransaction,
   });
 
   const handleUpload = async (file: File) => {
-    if (!storageAccountAddress) return;
+    if (!storageAccountAddress || !signAndSubmitTransaction) return;
 
     const buffer = await file.arrayBuffer();
-    await uploadBlobs([{
-      blobName: file.name,
-      data: new Uint8Array(buffer),
+    await uploadBlobs({
+      signer: { account: storageAccountAddress, signAndSubmitTransaction },
+      blobs: [{ blobName: file.name, blobData: new Uint8Array(buffer) }],
       expirationMicros: Date.now() * 1000 + 86400_000_000,
-    }]);
+    });
 
     setUploadedUrl(
       `https://api.shelbynet.shelby.xyz/shelby/v1/blobs/${storageAccountAddress}/${file.name}`

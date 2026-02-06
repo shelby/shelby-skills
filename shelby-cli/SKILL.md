@@ -31,11 +31,11 @@ shelby account create --name myaccount
 # 3. Fund the account (testnet)
 shelby faucet
 
-# 4. Upload a file
-shelby upload ./myfile.txt -n "hello.txt" -e 7d
+# 4. Upload a file (two positional args: source, destination)
+shelby upload ./myfile.txt hello.txt -e "tomorrow"
 
-# 5. Download a file
-shelby download hello.txt -o ./downloaded.txt
+# 5. Download a file (two positional args: source, destination)
+shelby download hello.txt ./downloaded.txt
 ```
 
 ## Configuration
@@ -43,18 +43,18 @@ shelby download hello.txt -o ./downloaded.txt
 Configuration is stored in `~/.shelby/config.yaml`:
 
 ```yaml
-global:
-  current_context: default
-  current_account: myaccount
-
 contexts:
   default:
-    network: shelbynet
-    rpc_base_url: https://api.shelbynet.shelby.xyz/shelby/v1
+    aptos_network: shelbynet
+    api_key: "AG-***"  # optional
 
 accounts:
   myaccount:
     private_key: "0x..."  # Aptos private key
+    address: "0x..."      # optional, derived from private key
+
+default_context: default
+default_account: myaccount
 ```
 
 ### Contexts
@@ -97,7 +97,7 @@ All commands support these options:
 | Option | Description |
 |--------|-------------|
 | `-v, --verbose` | Enable verbose output |
-| `-C, --config <path>` | Use custom config file |
+| `-C, --config-file <path>` | Use custom config file |
 | `-c, --context <name>` | Override current context |
 | `-a, --account <name>` | Override current account |
 | `--version` | Show version |
@@ -140,45 +140,43 @@ shelby faucet
 
 ### Upload with Custom Expiration
 
-```bash
-# Upload for 30 days
-shelby upload ./data.json -n "config/data.json" -e 30d
+The CLI uses natural language date parsing (via chrono-node), ISO dates, or Unix timestamps:
 
-# Upload for 1 hour
-shelby upload ./temp.txt -n "temp.txt" -e 1h
+```bash
+# Upload expiring tomorrow
+shelby upload ./data.json config/data.json -e "tomorrow"
+
+# Upload expiring in 2 days
+shelby upload ./temp.txt temp.txt -e "in 2 days"
 
 # Upload until specific date
-shelby upload ./file.txt -n "file.txt" -e "2025-12-31"
+shelby upload ./file.txt file.txt -e "2025-12-31"
+
+# Upload using Unix timestamp (seconds)
+shelby upload ./file.txt file.txt -e 1735689600
 ```
 
-### Batch Operations
+### Recursive Operations
 
 ```bash
-# Upload entire directory
-shelby upload ./my-folder -r --prefix "backups/"
+# Upload entire directory (source path ends without /, destination is a prefix)
+shelby upload ./my-folder/ backups/ -e "in 30 days" -r --assume-yes
 
 # Download all files matching a prefix
-shelby download "images/*" -o ./local-images -r
+shelby download images/ ./local-images -r
 
-# Delete multiple files
-shelby delete "temp/*" -r -y
-```
-
-### Download from Any Account
-
-```bash
-# Download from another account (public blobs)
-shelby download myfile.txt -a 0x1234...abcd -o ./downloaded.txt
+# Delete all files under a prefix (destination must end with /)
+shelby delete temp/ -r --assume-yes
 ```
 
 ## Key Concepts
 
 ### Blob Naming
 
-Blob names can include path-like structures:
+The upload command takes two positional arguments: source (local file) and destination (blob name):
 
 ```bash
-shelby upload ./photo.jpg -n "images/vacation/photo.jpg"
+shelby upload ./photo.jpg images/vacation/photo.jpg -e "next month"
 ```
 
 The full blob identifier is: `@{account_address}/{blob_name}`
@@ -189,11 +187,12 @@ Files require an expiration time. Supported formats:
 
 | Format | Example | Description |
 |--------|---------|-------------|
-| Duration | `7d`, `24h`, `30m` | Relative to upload time |
+| Natural language | `"tomorrow"`, `"in 2 days"`, `"next Friday"` | Parsed by chrono-node |
 | ISO Date | `2025-12-31` | Specific date |
+| ISO DateTime | `2025-12-31T23:59:59Z` | Specific datetime |
 | Unix timestamp | `1735689600` | Seconds since epoch |
 
-**Important:** Expiration is required for all uploads. There is no "permanent" storage option.
+**Important:** Duration formats like `7d`, `24h`, `30m` are NOT supported. Use natural language instead: `"in 7 days"`, `"in 24 hours"`, `"in 30 minutes"`.
 
 ### Networks
 
