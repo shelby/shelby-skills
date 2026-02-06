@@ -362,5 +362,5 @@ For detailed API documentation, see:
 
 ## Related Skills
 
-- **shelby-ethereum-kit** - Ethereum wallet integration via Derived Account Authorization (DAA)
-- **shelby-solana-kit** - Solana wallet integration via Derived Account Authorization (DAA)
+- **shelby-ethereum-kit** - Ethereum wallet integration via Derived Account Abstraction (DAA)
+- **shelby-solana-kit** - Solana wallet integration via Derived Account Abstraction (DAA)

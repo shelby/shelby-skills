@@ -1,11 +1,11 @@
 ---
 name: shelby-ethereum-kit
-description: Ethereum wallet integration for Shelby decentralized storage via Derived Account Authorization (DAA). Use when working with @shelby-protocol/ethereum-kit.
+description: Ethereum wallet integration for Shelby decentralized storage via Derived Account Abstraction (DAA). Use when working with @shelby-protocol/ethereum-kit.
 ---
 
 # Shelby Ethereum Kit
 
-The Ethereum Kit enables Ethereum wallets to use Shelby decentralized storage through **Derived Account Authorization (DAA)**. An Ethereum address combined with a dApp domain deterministically derives a Shelby storage account on Aptos, authenticated via Sign-In with Ethereum (SIWE).
+The Ethereum Kit enables Ethereum wallets to use Shelby decentralized storage through **Derived Account Abstraction (DAA)**. An Ethereum address combined with a dApp domain deterministically derives a Shelby storage account on Aptos, authenticated via Sign-In with Ethereum (SIWE).
 
 ## Package Version
 

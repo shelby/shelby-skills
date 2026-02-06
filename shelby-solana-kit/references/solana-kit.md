@@ -17,7 +17,7 @@ Complete guide for integrating Shelby Protocol with Solana wallets.
 
 ## Overview
 
-The Solana Kit enables Solana wallets to own and manage data on the Shelby network through **Derivable Account Abstraction (DAA)**. It provides both Node.js and React entry points.
+The Solana Kit enables Solana wallets to own and manage data on the Shelby network through **Derived Account Abstraction (DAA)**. It provides both Node.js and React entry points.
 
 ### Key Concepts
 

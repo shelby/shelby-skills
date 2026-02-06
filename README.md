@@ -2,6 +2,8 @@
 
 Agent skills for building with the Shelby ecosystem. Each skill provides structured documentation that AI coding agents (Claude Code, Cursor, Copilot, etc.) can use to assist with Shelby development tasks.
 
+Shelby uses Derived Account Abstraction (DAA) to let wallets from other chains (Ethereum, Solana) derive and control storage accounts on Aptos.
+
 ## Skills
 
 | Skill | Description | Packages |
@@ -64,8 +66,8 @@ Or manually: copy the skill directory into your Claude Code skills configuration
 Once installed, skills give your AI agent context about Shelby packages:
 
 - **shelby-sdk** — Scaffold blob storage apps, generate wallet integrations, reference SDK and React hooks APIs
-- **shelby-ethereum-kit** — Ethereum wallet integration with Derived Account Authorization (DAA) and SIWE
-- **shelby-solana-kit** — Solana wallet integration with Derived Account Authorization (DAA) and SIWS
+- **shelby-ethereum-kit** — Ethereum wallet integration with Derived Account Abstraction (DAA) and SIWE
+- **shelby-solana-kit** — Solana wallet integration with Derived Account Abstraction (DAA) and SIWS
 - **shelby-cli** — Get help with CLI commands for uploading, downloading, and managing decentralized storage
 - **shelby-media** — Build video streaming pipelines with transcoding, adaptive streaming, and DRM
 

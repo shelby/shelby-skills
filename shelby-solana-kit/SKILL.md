@@ -1,11 +1,11 @@
 ---
 name: shelby-solana-kit
-description: Solana wallet integration for Shelby decentralized storage via Derived Account Authorization (DAA). Use when working with @shelby-protocol/solana-kit.
+description: Solana wallet integration for Shelby decentralized storage via Derived Account Abstraction (DAA). Use when working with @shelby-protocol/solana-kit.
 ---
 
 # Shelby Solana Kit
 
-The Solana Kit enables Solana wallets to use Shelby decentralized storage through **Derived Account Authorization (DAA)**. A Solana public key combined with a dApp domain deterministically derives a Shelby storage account on Aptos, authenticated via Sign-In with Solana (SIWS).
+The Solana Kit enables Solana wallets to use Shelby decentralized storage through **Derived Account Abstraction (DAA)**. A Solana public key combined with a dApp domain deterministically derives a Shelby storage account on Aptos, authenticated via Sign-In with Solana (SIWS).
 
 ## Package Version
 
