@@ -8,40 +8,43 @@ Shelby uses Derived Account Abstraction (DAA) to let wallets from other chains (
 
 | Skill | Description | Packages |
 |-------|-------------|----------|
-| [shelby-sdk](shelby-sdk/SKILL.md) | Core SDK and React hooks for decentralized storage | `@shelby-protocol/sdk`, `@shelby-protocol/react` |
-| [shelby-ethereum-kit](shelby-ethereum-kit/SKILL.md) | Ethereum wallet integration via DAA | `@shelby-protocol/ethereum-kit` |
-| [shelby-solana-kit](shelby-solana-kit/SKILL.md) | Solana wallet integration via DAA | `@shelby-protocol/solana-kit` |
-| [shelby-cli](shelby-cli/SKILL.md) | CLI tool for Shelby decentralized storage | `shelby` CLI |
-| [shelby-media](shelby-media/SKILL.md) | Video streaming and media applications | `@shelby-protocol/player`, `@shelby-protocol/media-prepare` |
+| [shelby-sdk](skills/shelby-sdk/SKILL.md) | Core SDK and React hooks for decentralized storage | `@shelby-protocol/sdk`, `@shelby-protocol/react` |
+| [shelby-ethereum-kit](skills/shelby-ethereum-kit/SKILL.md) | Ethereum wallet integration via DAA | `@shelby-protocol/ethereum-kit` |
+| [shelby-solana-kit](skills/shelby-solana-kit/SKILL.md) | Solana wallet integration via DAA | `@shelby-protocol/solana-kit` |
+| [shelby-cli](skills/shelby-cli/SKILL.md) | CLI tool for Shelby decentralized storage | `shelby` CLI |
+| [shelby-media](skills/shelby-media/SKILL.md) | Video streaming and media applications | `@shelby-protocol/player`, `@shelby-protocol/media-prepare` |
 
 ## Structure
 
 ```
 shelby-skills/
-  shelby-sdk/
-    SKILL.md              # Entry point — core SDK and React hooks
-    references/
-      api-reference.md
-      react.md
-      advanced.md
-      sdk-feedback.md
-  shelby-ethereum-kit/
-    SKILL.md              # Entry point — Ethereum DAA integration
-    references/
-      ethereum-kit.md
-  shelby-solana-kit/
-    SKILL.md              # Entry point — Solana DAA integration
-    references/
-      solana-kit.md
-  shelby-cli/
-    SKILL.md
-    references/
-      commands.md
-  shelby-media/
-    SKILL.md
-    references/
-      player.md
-      media-prepare.md
+  .claude-plugin/
+    plugin.json           # Plugin manifest
+  skills/
+    shelby-sdk/
+      SKILL.md            # Entry point — core SDK and React hooks
+      references/
+        api-reference.md
+        react.md
+        advanced.md
+        sdk-feedback.md
+    shelby-ethereum-kit/
+      SKILL.md            # Entry point — Ethereum DAA integration
+      references/
+        ethereum-kit.md
+    shelby-solana-kit/
+      SKILL.md            # Entry point — Solana DAA integration
+      references/
+        solana-kit.md
+    shelby-cli/
+      SKILL.md
+      references/
+        commands.md
+    shelby-media/
+      SKILL.md
+      references/
+        player.md
+        media-prepare.md
   scripts/
     release.sh            # Local release helper
   .github/
@@ -53,23 +56,27 @@ Each skill follows the same pattern: a `SKILL.md` at the directory root as the e
 
 ## Installation
 
-Add a skill to Claude Code as a slash command:
+Add the plugin to Claude Code:
 
 ```bash
-claude skill add --name shelby-sdk --path ./shelby-sdk
+claude plugin add --path /path/to/shelby-skills
 ```
 
-Or manually: copy the skill directory into your Claude Code skills configuration.
+Or manually: symlink the repository into your Claude Code skills directory:
+
+```bash
+ln -s /path/to/shelby-skills ~/.claude/skills/shelby-skills
+```
 
 ## Usage
 
-Once installed, skills give your AI agent context about Shelby packages:
+Once installed, invoke skills with the `shelby-skills:<skill>` syntax:
 
-- **shelby-sdk** — Scaffold blob storage apps, generate wallet integrations, reference SDK and React hooks APIs
-- **shelby-ethereum-kit** — Ethereum wallet integration with Derived Account Abstraction (DAA) and SIWE
-- **shelby-solana-kit** — Solana wallet integration with Derived Account Abstraction (DAA) and SIWS
-- **shelby-cli** — Get help with CLI commands for uploading, downloading, and managing decentralized storage
-- **shelby-media** — Build video streaming pipelines with transcoding, adaptive streaming, and DRM
+- `/shelby-skills:shelby-sdk` — Core storage operations & React hooks
+- `/shelby-skills:shelby-ethereum-kit` — Ethereum wallet integration (DAA + SIWE)
+- `/shelby-skills:shelby-solana-kit` — Solana wallet integration (DAA + SIWS)
+- `/shelby-skills:shelby-cli` — CLI commands for uploads, downloads, and account management
+- `/shelby-skills:shelby-media` — Video streaming with transcoding, adaptive streaming, and DRM
 
 ## Releasing
 
@@ -87,7 +94,7 @@ scripts/release.sh [major|minor|patch]
 
 To add a new skill:
 
-1. Create a directory named `shelby-<name>/`
+1. Create a directory named `skills/shelby-<name>/`
 2. Add a `SKILL.md` with frontmatter (`name`, `description`) and structured content
 3. Add a `references/` directory for detailed API docs and guides
 4. Update the skills table in this README
