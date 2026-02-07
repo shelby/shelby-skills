@@ -28,9 +28,9 @@ Choose the right skill based on what the user needs:
 
 ## Routing guidance
 
-- General storage operations → load shelby-skills:shelby-sdk
-- User mentions Ethereum, wagmi, viem, ethers, SIWE, MetaMask → load shelby-skills:shelby-ethereum-kit
-- User mentions Solana, wallet-adapter, SIWS, Phantom → load shelby-skills:shelby-solana-kit
-- User mentions CLI, terminal, `shelby` command, localnet → load shelby-skills:shelby-cli
-- User mentions video, player, transcoding, HLS, DASH, DRM, CMAF, FFmpeg → load shelby-skills:shelby-media
-- User mentions cross-chain, DAA, or Derived Account Abstraction → check if Ethereum or Solana context, load the appropriate kit
+- General storage operations → Read `skills/shelby-sdk/SKILL.md`
+- User mentions Ethereum, wagmi, viem, ethers, SIWE, MetaMask → Read `skills/shelby-ethereum-kit/SKILL.md`
+- User mentions Solana, wallet-adapter, SIWS, Phantom → Read `skills/shelby-solana-kit/SKILL.md`
+- User mentions CLI, terminal, `shelby` command, localnet → Read `skills/shelby-cli/SKILL.md`
+- User mentions video, player, transcoding, HLS, DASH, DRM, CMAF, FFmpeg → Read `skills/shelby-media/SKILL.md`
+- User mentions cross-chain, DAA, or Derived Account Abstraction → check if Ethereum or Solana context, read the appropriate kit's SKILL.md
