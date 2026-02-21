@@ -102,6 +102,119 @@ Replace `SystemFFmpegExecutor` with `WasmFFmpegExecutor` for browser environment
 
 **Segment Duration:** Fixed seconds or computed from `maxBlobBytes` for optimal Shelby storage alignment.
 
+## End-to-End Workflow: Transcode → Upload → Play
+
+A complete pipeline from raw video to adaptive streaming playback on Shelby:
+
+### Step 1: Transcode with media-prepare
+
+```typescript
+import { CmafPlanBuilder, CmafPlanExecutor, FfmpegTranscoder } from "@shelby-protocol/media-prepare";
+import { SystemFFmpegExecutor, ShakaPackager } from "@shelby-protocol/media-prepare/node";
+import * as fs from "node:fs/promises";
+
+const plan = new CmafPlanBuilder()
+  .withInput("./raw-video.mp4")
+  .withOutputDir("./output")
+  .force()
+  .withVideoCodec("x264", { preset: "veryfast", profile: "high" })
+  .withVideoLadder([
+    { width: 854, height: 480, bitrateBps: 1_000_000 },
+    { width: 1280, height: 720, bitrateBps: 2_500_000 },
+    { width: 1920, height: 1080, bitrateBps: 5_000_000 },
+  ])
+  .withAudioCodec("aac")
+  .addAudioTrack({ language: "eng", bitrateBps: 128_000, default: true })
+  .withSegmentDuration(4)
+  .withDashOutput()
+  .withHlsOutput()
+  .build();
+
+const executor = new CmafPlanExecutor({
+  fs,
+  transcoder: new FfmpegTranscoder(new SystemFFmpegExecutor()),
+  packager: new ShakaPackager(),
+});
+
+await executor.execute(plan);
+// Output: ./output/ with CMAF segments, manifest.mpd, and master.m3u8
+```
+
+### Step 2: Upload to Shelby
+
+```typescript
+import { ShelbyNodeClient } from "@shelby-protocol/sdk/node";
+import { Network } from "@aptos-labs/ts-sdk";
+import * as path from "node:path";
+
+const client = new ShelbyNodeClient({ network: Network.SHELBYNET });
+
+// Upload all output files recursively
+const outputDir = "./output";
+const files = await fs.readdir(outputDir, { recursive: true });
+
+for (const file of files) {
+  const filePath = path.join(outputDir, file.toString());
+  const stat = await fs.stat(filePath);
+  if (!stat.isFile()) continue;
+
+  const data = await fs.readFile(filePath);
+  await client.upload({
+    blobData: new Uint8Array(data),
+    signer: account,
+    blobName: `videos/my-video/${file}`,
+    expirationMicros: Date.now() * 1000 + 30 * 24 * 3600 * 1_000_000, // 30 days
+  });
+}
+```
+
+### Step 3: Play with the Player component
+
+```tsx
+import { VideoPlayer } from "@shelby-protocol/player";
+import "@shelby-protocol/player/styles.css";
+
+function VideoPage() {
+  const manifestUrl = `https://api.shelbynet.shelby.xyz/shelby/v1/blobs/${accountAddress}/videos/my-video/manifest.mpd`;
+
+  return (
+    <VideoPlayer
+      src={manifestUrl}
+      title="My Transcoded Video"
+      config={{ streaming: { bufferingGoal: 15 } }}
+    />
+  );
+}
+```
+
+## Choosing a Video Codec
+
+| Codec | Quality | Speed | Browser Support | Best For |
+|-------|---------|-------|-----------------|----------|
+| **x264** (H.264) | Good | Fast | Universal | General use, maximum compatibility |
+| **x265** (H.265/HEVC) | Better | Slow | Safari, Edge, Chrome (partial) | Smaller files when compatibility allows |
+| **aom-av1** (AV1) | Best | Very slow | Chrome, Firefox, Edge | Best compression, future-proof |
+| **copy** | Same as source | Instant | Depends on source | Re-packaging without re-encoding |
+
+**Recommendation:** Use `x264` with `preset: "veryfast"` for development and `preset: "medium"` for production. Switch to `aom-av1` when targeting modern browsers and when encoding time is not a concern.
+
+## Browser vs Node.js
+
+| Feature | Node.js | Browser |
+|---------|---------|---------|
+| FFmpeg executor | `SystemFFmpegExecutor` (system binary) | `WasmFFmpegExecutor` (WASM) |
+| Shaka Packager | `ShakaPackager` (system binary) | Not available |
+| Performance | Full speed, no size limits | Limited by browser memory |
+| Use case | Server-side transcoding pipelines | Client-side lightweight transcoding |
+
+For production workflows, use Node.js for transcoding and the browser `VideoPlayer` for playback.
+
+## See Also
+
+- **shelby-sdk** — Core upload/download operations used to store transcoded output
+- **shelby-ethereum-kit** / **shelby-solana-kit** — Cross-chain wallet integration for authenticated uploads
+- **shelby-cli** — Upload transcoded output from the command line: `shelby upload ./output/ videos/my-video/ -e "in 30 days" -r`
+
 ## References
 
 - [Player Components](references/player.md) — All player components, props, providers, and custom layout guide
