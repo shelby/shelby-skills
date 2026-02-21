@@ -18,7 +18,7 @@ type Signer = AccountSigner | WalletAdapterSigner;
 // WalletAdapterSigner = { account, signAndSubmitTransaction } (for any wallet adapter)
 ```
 
-For Ethereum wallet integration (DAA with SIWE), see the **shelby-ethereum-kit** skill. For Solana wallet integration (DAA with SIWS), see the **shelby-solana-kit** skill.
+For Ethereum wallet integration (Derived Account Abstraction (DAA) with Sign-In with Ethereum (SIWE)), see the **shelby-ethereum-kit** skill. For Solana wallet integration (Derived Account Abstraction (DAA) with Sign-In with Solana (SIWS)), see the **shelby-solana-kit** skill.
 
 ### Package Versions
 
