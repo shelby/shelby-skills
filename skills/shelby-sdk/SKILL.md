@@ -1,6 +1,6 @@
 ---
 name: shelby-sdk
-description: Build decentralized storage applications with the Shelby Protocol SDK. Use when working with @shelby-protocol/sdk or @shelby-protocol/react.
+description: "Upload, download, delete, and list files on Shelby decentralized storage. Provides React hooks for storage UIs and batch operations. Use when building with @shelby-protocol/sdk or @shelby-protocol/react, implementing on-chain file storage, or managing blobs on Aptos."
 ---
 
 # Shelby Protocol SDK
@@ -22,7 +22,6 @@ For Ethereum wallet integration (DAA with SIWE), see the **shelby-ethereum-kit**
 
 ### Package Versions
 
-Use the correct versions (as of 2026):
 ```bash
 "@shelby-protocol/sdk": "^0.0.9"
 "@shelby-protocol/react": "^0.0.5"
@@ -32,19 +31,9 @@ Use the correct versions (as of 2026):
 ### API Response Field Names
 
 When listing blobs with `getAccountBlobs()`, the response uses:
-- `blobNameSuffix` (not `name` or `blobName`)
-- `creationMicros` (not `created_at`)
-- `expirationMicros` (not `expiration`)
-
-```typescript
-interface BlobData {
-  name: string;           // Full blob name with account prefix
-  blobNameSuffix: string; // The blob name without account prefix (use this)
-  size: number;
-  creationMicros: number; // Microseconds since epoch
-  expirationMicros: number;
-}
-```
+- `blobNameSuffix` (not `name` or `blobName`) — the blob name without account prefix
+- `creationMicros` (not `created_at`) — microseconds since epoch
+- `expirationMicros` (not `expiration`) — microseconds since epoch
 
 ## Installation
 
@@ -198,35 +187,10 @@ Instructions on obtaining an API key: https://docs.shelby.xyz/sdks/typescript/ac
 
 ```typescript
 interface ShelbyClientConfig {
-  // Required: The Shelby network
-  network: ShelbyNetwork;
-
-  // Optional: API key for authentication
-  apiKey?: string;
-
-  // Optional: Custom deployer address
-  deployer?: AccountAddress;
-
-  // Optional: Custom Aptos blockchain settings
-  aptos?: AptosSettings;
-
-  // Optional: Custom RPC node configuration
-  rpc?: {
-    baseUrl?: string;
-    apiKey?: string;
-  };
-
-  // Optional: Custom indexer configuration
-  indexer?: {
-    baseUrl?: string;
-    apiKey?: string;
-  };
-
-  // Optional: Custom faucet URL
-  faucet?: string;
-
-  // Optional: Gas station API key (for sponsored transactions in cross-chain kits)
-  gasStationApiKey?: string;
+  network: ShelbyNetwork;        // Required: The Shelby network
+  apiKey?: string;               // Optional: API key for authentication
+  gasStationApiKey?: string;     // Optional: Gas station key (cross-chain kits)
+  // Advanced: deployer, aptos, rpc, indexer, faucet — see references/api-reference.md
 }
 ```
 
@@ -258,6 +222,10 @@ await client.batchUpload({
   expirationMicros: Date.now() * 1000 + 86400_000_000,
   signer: account,
 });
+
+// Verify batch upload
+const uploaded = await client.coordination.getAccountBlobs({ account: account.accountAddress });
+console.log(`Uploaded ${uploaded.length} blob(s)`);
 ```
 
 ### Download

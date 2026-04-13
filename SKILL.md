@@ -1,6 +1,6 @@
 ---
 name: shelby
-description: Shelby decentralized storage protocol on Aptos. Use when the user asks general questions about Shelby, needs help choosing which Shelby package to use, or is starting a new Shelby integration.
+description: "Route to the correct Shelby skill for decentralized storage on Aptos — upload/download files, connect Ethereum/Solana wallets, transcode video, or manage storage via CLI. Use when the user asks general questions about Shelby, needs help choosing a Shelby package, or is starting a new Shelby integration."
 ---
 
 # Shelby Protocol
