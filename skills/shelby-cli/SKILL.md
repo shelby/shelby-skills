@@ -1,11 +1,9 @@
 ---
 name: shelby-cli
-description: CLI tool for Shelby decentralized storage. Use when working with the shelby command for file uploads/downloads, account management, context switching, or local development with localnet.
+description: "Upload files, download blobs, create and manage accounts, switch network contexts, and spin up localnet for local development using the Shelby CLI. Use when working with the shelby command, managing decentralized storage from the terminal, or setting up local Shelby development."
 ---
 
 # Shelby CLI
-
-The Shelby CLI (`shelby`) is a command-line tool for interacting with Shelby decentralized storage. Upload, download, and manage files directly from your terminal.
 
 ## Installation
 

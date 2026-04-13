@@ -1,33 +1,18 @@
 ---
 name: shelby-solana-kit
-description: Solana wallet integration for Shelby decentralized storage via Derived Account Abstraction (DAA). Use when working with @shelby-protocol/solana-kit.
+description: "Create Solana-derived Shelby storage accounts, sign transactions via SIWS, and upload/download decentralized data using Derived Account Abstraction (DAA). Use when integrating Solana wallets with Shelby storage, connecting Phantom or wallet-adapter wallets to decentralized storage, or working with @shelby-protocol/solana-kit."
 ---
 
 # Shelby Solana Kit
 
 The Solana Kit enables Solana wallets to use Shelby decentralized storage through **Derived Account Abstraction (DAA)**. A Solana public key combined with a dApp domain deterministically derives a Shelby storage account on Aptos, authenticated via Sign-In with Solana (SIWS).
 
-## Package Version
-
-Use the correct version (as of 2026):
-```bash
-"@shelby-protocol/solana-kit": "^0.2.0"
-```
-
 ## Installation
 
 ```bash
-# Core solana-kit package
 pnpm install @shelby-protocol/solana-kit
-
-# For Node.js usage
-pnpm install @solana/web3.js
-
-# For React usage (with wallet-adapter)
-pnpm install @solana/wallet-adapter-react @solana/wallet-adapter-base
-
-# You also need the core SDK and React hooks for full integration
-pnpm install @shelby-protocol/sdk @shelby-protocol/react @tanstack/react-query
+# Node.js: also install @solana/web3.js
+# React: also install @solana/wallet-adapter-react @shelby-protocol/sdk @shelby-protocol/react @tanstack/react-query
 ```
 
 ## Quick Start - Node.js
@@ -44,12 +29,16 @@ const shelby = new Shelby({
 const keypair = Keypair.generate();
 const storageAccount = shelby.createStorageAccount(keypair, "my-dapp.com");
 
-await shelby.upload({
+const uploadResult = await shelby.upload({
   blobData: new TextEncoder().encode("Hello from Solana!"),
   signer: storageAccount,
   blobName: "hello.txt",
   expirationMicros: Date.now() * 1000 + 86400_000_000,
 });
+
+// Verify upload succeeded
+const blobs = await shelby.coordination.getAccountBlobs({ account: storageAccount.accountAddress });
+console.log(`Stored ${blobs.length} blob(s)`);
 ```
 
 ## Quick Start - React

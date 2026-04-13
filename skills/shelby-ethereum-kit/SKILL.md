@@ -1,33 +1,18 @@
 ---
 name: shelby-ethereum-kit
-description: Ethereum wallet integration for Shelby decentralized storage via Derived Account Abstraction (DAA). Use when working with @shelby-protocol/ethereum-kit.
+description: "Create Ethereum-derived Shelby storage accounts, sign transactions via SIWE, and upload/download decentralized data using Derived Account Abstraction (DAA). Use when integrating Ethereum wallets with Shelby storage, connecting MetaMask or wagmi wallets to decentralized storage, or working with @shelby-protocol/ethereum-kit."
 ---
 
 # Shelby Ethereum Kit
 
 The Ethereum Kit enables Ethereum wallets to use Shelby decentralized storage through **Derived Account Abstraction (DAA)**. An Ethereum address combined with a dApp domain deterministically derives a Shelby storage account on Aptos, authenticated via Sign-In with Ethereum (SIWE).
 
-## Package Version
-
-Use the correct version (as of 2026):
-```bash
-"@shelby-protocol/ethereum-kit": "^0.1.1"
-```
-
 ## Installation
 
 ```bash
-# Core ethereum-kit package
 pnpm install @shelby-protocol/ethereum-kit
-
-# For Node.js usage (with ethers)
-pnpm install ethers
-
-# For React usage (with wagmi/viem)
-pnpm install wagmi viem
-
-# You also need the core SDK and React hooks for full integration
-pnpm install @shelby-protocol/sdk @shelby-protocol/react @tanstack/react-query
+# Node.js: also install ethers
+# React: also install wagmi viem @shelby-protocol/sdk @shelby-protocol/react @tanstack/react-query
 ```
 
 ## Quick Start - Node.js
@@ -44,12 +29,16 @@ const storageAccount = shelby.createStorageAccount(wallet, "my-dapp.com");
 await shelby.fundAccountWithShelbyUSD({ address: storageAccount.accountAddress, amount: 1_000_000 });
 await shelby.fundAccountWithAPT({ address: storageAccount.accountAddress, amount: 1_000_000 });
 
-await shelby.upload({
+const uploadResult = await shelby.upload({
   blobData: new TextEncoder().encode("Hello from Ethereum!"),
   signer: storageAccount,
   blobName: "hello.txt",
   expirationMicros: Date.now() * 1000 + 86400_000_000,
 });
+
+// Verify upload succeeded
+const blobs = await shelby.coordination.getAccountBlobs({ account: storageAccount.accountAddress });
+console.log(`Stored ${blobs.length} blob(s)`);
 ```
 
 ## Quick Start - React (with wagmi)
