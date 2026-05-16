@@ -64,10 +64,11 @@ Save as `shelby-bench.sh`:
 
 ```bash
 #!/bin/bash
+TIMEFORMAT=%R
 SIZES=(10 100 1024 10240)
 LABELS=("10KB" "100KB" "1MB" "10MB")
 DATE=$(date +%Y%m%d-%H%M)
-TIMEFORMAT=%R REPORT="bench-report-$DATE.csv"
+REPORT="bench-report-$DATE.csv"
 
 echo "size,upload_seconds,download_seconds,integrity,timestamp" > "$REPORT"
 
@@ -78,15 +79,15 @@ for i in "${!SIZES[@]}"; do
 
   dd if=/dev/urandom of="$FILE" bs=1024 count="${SIZES[$i]}" 2>/dev/null
 
-  UPLOAD=$( { time shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes; } 2>&1 | grep real | awk '{print $2}')
-  DOWNLOAD=$( { time shelby download "$BLOB" "$DL"; } 2>&1 | grep real | awk '{print $2}')
+  UPLOAD=$( { time shelby upload "$FILE" "$BLOB" -e "in 7 days" --assume-yes > /dev/null 2>&1; } 2>&1 )
+  DOWNLOAD=$( { time shelby download "$BLOB" "$DL" > /dev/null 2>&1; } 2>&1 )
 
   ORIG=$(shasum -a 256 "$FILE" | awk '{print $1}')
   DLHASH=$(shasum -a 256 "$DL" | awk '{print $1}')
   if [ "$ORIG" = "$DLHASH" ]; then INTEGRITY="pass"; else INTEGRITY="fail"; fi
 
   echo "${LABELS[$i]},$UPLOAD,$DOWNLOAD,$INTEGRITY,$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$REPORT"
-  echo "Done ${LABELS[$i]}: upload=$UPLOAD download=$DOWNLOAD integrity=$INTEGRITY"
+  echo "Done ${LABELS[$i]}: upload=${UPLOAD}s download=${DOWNLOAD}s integrity=$INTEGRITY"
 done
 
 echo "Report: $REPORT"
