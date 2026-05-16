@@ -67,7 +67,7 @@ Save as `shelby-bench.sh`:
 SIZES=(10 100 1024 10240)
 LABELS=("10KB" "100KB" "1MB" "10MB")
 DATE=$(date +%Y%m%d-%H%M)
-REPORT="bench-report-$DATE.csv"
+TIMEFORMAT=%R REPORT="bench-report-$DATE.csv"
 
 echo "size,upload_seconds,download_seconds,integrity,timestamp" > "$REPORT"
 
