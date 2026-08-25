@@ -15,14 +15,14 @@ Complete API for `@shelby-protocol/player`.
 ## Installation
 
 ```bash
-pnpm install @shelby-protocol/player shaka-player
+pnpm install @shelby-protocol/player
 ```
 
-Peer dependencies: React 18 or 19, shaka-player.
+Peer dependencies: React 18 or 19, `react-dom`, and `tailwindcss` (^3 or ^4). `shaka-player` ships as a bundled dependency, so you don't install it separately.
 
-Import styles:
+Import styles — pick one theme (each theme `@import`s `base.css`, and pulls in `tw-animate-css`, so a Tailwind-enabled app is required):
 ```tsx
-import "@shelby-protocol/player/styles.css";
+import "@shelby-protocol/player/styles/shadcn.css"; // or styles/neutral.css; styles/base.css is the unthemed core
 ```
 
 ## VideoPlayer
@@ -33,7 +33,7 @@ All-in-one component with default controls.
 import { VideoPlayer } from "@shelby-protocol/player";
 
 <VideoPlayer
-  src="https://example.com/manifest.mpd"
+  src="https://example.com/master.m3u8"
   title="My Video"
   config={{ streaming: { bufferingGoal: 30 } }}
   onStateChange={(state) => console.log(state)}
