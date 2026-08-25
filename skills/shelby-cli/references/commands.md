@@ -12,9 +12,10 @@ Complete reference for all Shelby CLI commands.
 - [shelby download](#shelby-download)
 - [shelby delete](#shelby-delete)
 - [shelby faucet](#shelby-faucet)
-- [shelby localnet](#shelby-localnet)
+- [shelby locations](#shelby-locations)
 - [shelby commitment](#shelby-commitment)
-- [Environment Variables](#environment-variables)
+- [Scripting the CLI](#scripting-the-cli)
+- [Configuration overrides](#configuration-overrides)
 - [Exit Codes](#exit-codes)
 
 ## shelby init
@@ -28,17 +29,22 @@ shelby init [options]
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--force` | Overwrite existing configuration |
+| `--setup-default` | Generate standard contexts and a fresh account non-interactively |
 
-**Interactive Prompts:**
-- Network selection (shelbynet, local)
+**Interactive Prompts (default, without `--setup-default`):**
+- Network / context selection
 - Account creation (optional)
 
 **Example:**
 ```bash
 shelby init
-# Creates ~/.shelby/config.yaml with default context
+# Creates ~/.shelby/config.yaml with standard contexts
+
+# Non-interactive: generate standard contexts + a fresh account
+shelby init --setup-default
 ```
+
+> **Network note:** ShelbyNet is the default context after `init`. Testnet has been retired — the CLI rejects `testnet` contexts and won't create new ones. See [Networks](../SKILL.md#networks).
 
 ## shelby account
 
@@ -55,8 +61,10 @@ shelby account create [options]
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--name <name>` | Account name (required) |
-| `--private-key <key>` | Import existing private key |
+| `--name <account-name>` | Account name |
+| `--scheme <signature-scheme>` | Signature scheme of the private key (choices: `ed25519`) |
+| `--private-key <key>` | Import existing raw private key |
+| `--address <account-address>` | Aptos account address (hex-encoded) |
 
 **Examples:**
 ```bash
@@ -65,22 +73,38 @@ shelby account create --name myaccount
 
 # Import existing key
 shelby account create --name imported --private-key "0x..."
+
+# Import a key with an explicit scheme and address
+shelby account create --name imported --private-key "0x..." --scheme ed25519 --address "0x..."
 ```
 
 ### shelby account list
 
-List all accounts.
+List all accounts in a table view.
 
 ```bash
 shelby account list
 ```
 
-**Output:**
+**Output** — a colorized, bordered table with columns **Name / Address / Private Key**.
+The active account is marked `(default)` under its name. The **address wraps across two
+rows** and the **private key is truncated**:
 ```
-NAME        ADDRESS                                    CURRENT
-myaccount   0x1234...abcd                              *
-dev         0x5678...efgh
+┌─────────────┬─────────────────────────────────────────────┬────────────────┐
+│ Name        │ Address                                     │ Private Key    │
+├─────────────┼─────────────────────────────────────────────┼────────────────┤
+│ alice       │ 0x1857639c70f976f94a30d3d1510b9e172ff82c7e0 │ ed25519-priv-0 │
+│             │ 17f1227d864885b37c9b960                     │ x46527...      │
+├─────────────┼─────────────────────────────────────────────┼────────────────┤
+│ shelby-demo │ 0xec4c50f0d42f1ec5e87df46b19887a169b9c53c15f │ ed25519-priv-0 │
+│  (default)  │ 8edff58fe6e9c2ba48e52a                      │ xc2dad...      │
+└─────────────┴─────────────────────────────────────────────┴────────────────┘
 ```
+
+> **Don't parse this.** It's a human-oriented ANSI table with line-wrapped, truncated
+> cells and no `--json` flag (verified on v0.2.0). To read an account's full address or
+> private key programmatically, read `~/.shelby/config.yaml` instead — see
+> [Scripting the CLI](#scripting-the-cli).
 
 ### shelby account use
 
@@ -119,56 +143,89 @@ shelby account blobs [options]
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--limit <n>` | Maximum blobs to list (default: 100) |
-| `--offset <n>` | Skip first n blobs |
+| `-a, --account <account-name>` | Account to list blobs for (defaults to the active account) |
 
-**Output:**
+**Output** — a header block (account address + Explorer link) followed by a bordered
+table with columns **Name / Size / Status** (the `Expires` column was dropped in v0.2.0
+when blob expiration was removed):
 ```
-NAME                SIZE        EXPIRES
-images/photo.jpg    1.2 MB      2025-06-15
-data.json           4.5 KB      2025-04-01
+🔍  Retrieving blobs for shelby-demo
+👤  Address: 0xec4c50f0d42f1ec5e87df46b19887a169b9c53c15f8edff58fe6e9c2ba48e52a
+🗂️  Shelby Explorer: https://explorer.shelby.xyz/shelbynet/account/0xec4c...
+
+Name                Size       Status
+images/photo.jpg    1.2 MB     Written
+data.json           4.5 KB     Written
 ```
+
+> Requires network access to the Shelby indexer. With no connectivity it prints
+> `Error listing blobs: fetch failed`.
 
 ### shelby account balance
 
-Check account balance.
+Display the APT and ShelbyUSD balances for an account.
 
 ```bash
-shelby account balance
+shelby account balance [address]
 ```
 
-**Output:**
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `[address]` | Account address to query (defaults to the active account) |
+
+**Examples:**
+```bash
+# Active account
+shelby account balance
+
+# Any address
+shelby account balance 0x1234...abcd
 ```
-APT:        1.5
-ShelbyUSD:  10000
+
+**Output** — a bordered table with columns **Token / Asset / Balance / Raw Units**. The
+token name may wrap (`ShelbyUSD` → `ShelbyU` / `SD`). An unfunded account shows a
+"No balances found" warning:
 ```
+Token      Asset                          Balance         Raw Units
+APT        0x1::aptos_coin::AptosCoin      1.5 APT         150000000
+ShelbyUSD  <shelby-usd-asset>              10000 ShelbyUSD  10000000000
+```
+
+> **Parsing note:** No `--json` flag exists. To read a balance in a script, strip ANSI
+> and match the `<number> <UNIT>` token rather than assuming column positions — see
+> [Scripting the CLI](#scripting-the-cli).
 
 ## shelby config
 
 Manage global configuration.
 
+Global configuration controls how the CLI finds your `config.yaml`. To change the
+default context or account, use `shelby context use <name>` / `shelby account use <name>`
+(which set `default_context` / `default_account` in the config), not this command.
+
 ### shelby config set-global-config
 
-Set a global configuration value.
+Set global configuration, such as where to load the `.shelby/config.yaml` file from.
 
 ```bash
-shelby config set-global-config <key> <value>
+shelby config set-global-config [options]
 ```
 
-**Available Keys:**
-| Key | Description |
-|-----|-------------|
-| `current_context` | Default context name |
-| `current_account` | Default account name |
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--config-location-behavior <behavior>` | `global` — always load `~/.shelby/config.yaml`. `walk` — try `.shelby/config.yaml`, then parent directories, then fall back to the global `~/.shelby/config.yaml`. |
 
 **Example:**
 ```bash
-shelby config set-global-config current_context local
+# Enable project-local config discovery
+shelby config set-global-config --config-location-behavior walk
 ```
 
 ### shelby config describe-global-config
 
-Show all configuration values with descriptions.
+Describe the current global configuration.
 
 ```bash
 shelby config describe-global-config
@@ -176,16 +233,10 @@ shelby config describe-global-config
 
 ### shelby config get-global-config
 
-Get a specific configuration value.
+Display the global config file content as YAML.
 
 ```bash
-shelby config get-global-config <key>
-```
-
-**Example:**
-```bash
-shelby config get-global-config current_context
-# Output: default
+shelby config get-global-config
 ```
 
 ## shelby context
@@ -203,33 +254,50 @@ shelby context create [options]
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--name <name>` | Context name (required) |
-| `--network <network>` | Network: `shelbynet` or `local` |
-| `--rpc-url <url>` | Custom RPC URL |
+| `--name <context-name>` | Name of the context |
+| `--aptos-network <network>` | Aptos network (`local`, `shelbynet`; `testnet` is retired and rejected) |
+| `--aptos-fullnode <url>` | Aptos fullnode URL |
+| `--aptos-faucet <url>` | Aptos faucet URL |
+| `--aptos-indexer <url>` | Aptos indexer URL |
+| `--aptos-pepper <url>` | Aptos pepper URL |
+| `--aptos-prover <url>` | Aptos prover URL |
+| `--aptos-api-key <key>` | Aptos API key |
+| `--shelby-rpc-endpoint <url>` | Shelby RPC endpoint |
+| `--shelby-indexer-endpoint <url>` | Shelby indexer endpoint |
+| `--shelby-rpc-api-key <key>` | Shelby RPC API key |
+| `--shelby-indexer-api-key <key>` | Shelby indexer API key |
+| `--shelby-rpc-receiver-address <address>` | Shelby RPC receiver address for micropayments |
 
 **Examples:**
 ```bash
-# Create localnet context
-shelby context create --name local --network local
+# Create a context on ShelbyNet
+shelby context create --name shelbynet --aptos-network shelbynet
 
-# Create custom context
-shelby context create --name custom --rpc-url https://custom.shelby.xyz
+# Create a context with custom Shelby endpoints
+shelby context create --name custom \
+  --aptos-network shelbynet \
+  --shelby-rpc-endpoint https://custom.shelby.xyz/shelby/v1
 ```
 
 ### shelby context update
 
-Update an existing context.
+Update an existing context. Accepts the same options as `create` (except `--name`).
 
 ```bash
-shelby context update <name> [options]
+shelby context update <context-name> [options]
 ```
 
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--network <network>` | New network |
-| `--rpc-url <url>` | New RPC URL |
-| `--indexer-api-key <key>` | Indexer API key |
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `<context-name>` | Name of the context to update |
+
+**Options:** same `--aptos-*` and `--shelby-*` options as [`context create`](#shelby-context-create) above.
+
+**Example:**
+```bash
+shelby context update shelbynet --shelby-rpc-api-key "AG-***"
+```
 
 ### shelby context list
 
@@ -241,10 +309,13 @@ shelby context list
 
 **Output:**
 ```
-NAME        NETWORK     RPC URL                                    CURRENT
-default     shelbynet   https://api.shelbynet.shelby.xyz/shelby/v1 *
-local       local       http://localhost:8080/shelby/v1
+NAME        NETWORK     RPC URL                                      CURRENT
+shelbynet   shelbynet   https://api.shelbynet.shelby.xyz/shelby/v1   *
+local       local       http://localhost:9090/
 ```
+
+> The CLI's default context is `shelbynet`. A retired `testnet` context may still appear
+> here if it was created by an older CLI, but selecting it errors — switch or delete it.
 
 ### shelby context use
 
@@ -284,46 +355,38 @@ shelby upload <source> <destination> [options]
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `-e, --expiration <datetime>` | Expiration date/time (required) |
+| `--location <name>` | Write location (region). If omitted, the write follows the account's location preference and the context's `location_hint`. **A freshly created account has neither, so uploads fail without it** (see error below). Run `shelby locations` to list valid names — currently the only one is `shelbynet-1` — or set a hint once with `shelby locations use <name>`. |
 | `-r, --recursive` | Upload directory recursively |
 | `--assume-yes` | Skip confirmation prompts |
-| `--output-commitments <file>` | Save commitment data to file |
+| `--output-commitments <filename>` | Save commitment data computed during the upload to a file |
 
-**Expiration Formats:**
-| Format | Example | Description |
-|--------|---------|-------------|
-| Natural language | `"tomorrow"`, `"in 2 days"`, `"next Friday"` | Parsed by chrono-node |
-| ISO Date | `2025-12-31` | Specific date |
-| ISO DateTime | `2025-12-31T23:59:59Z` | Specific datetime |
-| Unix timestamp | `1735689600` | Seconds since epoch |
-
-**Note:** Duration formats like `7d`, `24h` are NOT supported. Use `"in 7 days"`, `"in 24 hours"` instead.
+> Blob expiration was removed in v0.2.0 — there is no longer an `-e/--expiration` flag, and
+> registrations use the protocol's fixed payment window.
 
 **Examples:**
 ```bash
-# Upload single file
-shelby upload ./myfile.txt data/myfile.txt -e "in 7 days"
+# Resolve the write location first (currently the only one is `shelbynet-1`)
+shelby locations
+
+# Upload single file (pass --location on a fresh account)
+shelby upload ./myfile.txt data/myfile.txt --location shelbynet-1
 
 # Upload directory recursively
-shelby upload ./images/ backups/images/ -e "in 30 days" -r --assume-yes
-
-# Upload with specific expiration date
-shelby upload ./important.pdf docs/important.pdf -e "2025-12-31"
+shelby upload ./images/ backups/images/ -r --location shelbynet-1 --assume-yes
 
 # Upload and save commitments
-shelby upload ./data.bin data.bin -e "tomorrow" --output-commitments ./commitments.json
+shelby upload ./data.bin data.bin --location shelbynet-1 --output-commitments ./commitments.json
 ```
 
-**Output:**
+**Failure without a location** (fresh, funded account, no `--location`):
 ```
-Uploading myfile.txt...
-  Size: 1.2 KB
-  Blob name: data/myfile.txt
-  Expires: 2025-03-15 14:30:00 UTC
-  Transaction: 0xabc123...
-
-Upload complete!
+❌ 1 file failed (24.0 MB)
+   Last error: registration failed for blob-1-24mb.bin: Registration failed after 5 attempts:
+   No write location could be resolved: none was selected and the account has no default
+   location or location hint.
 ```
+Fix: pass `--location <name>` (see `shelby locations`), or set a default location on the
+account / a `location_hint` on the context.
 
 ## shelby download
 
@@ -342,35 +405,36 @@ shelby download <source> <destination> [options]
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `-r, --recursive` | Download all blobs matching the prefix |
+| `-r, --recursive` | Download all blobs matching the prefix (canonical `/`-separated directory layout) |
 | `-f, --force` | Overwrite existing files/directories |
 | `--allow-concurrent` | Bypass download lock (micropayments may not work correctly) |
+| `--price-per-gb <price>` | Price per gigabyte in ShelbyUSD for micropayments (default: `0.03`) |
 
 **Examples:**
 ```bash
 # Download single file
 shelby download myfile.txt ./downloaded.txt
 
-# Download directory recursively
-shelby download images/ ./local-images -r
+# Download directory recursively — BOTH source prefix and destination MUST end with '/'
+shelby download images/ ./local-images/ -r
 
 # Force overwrite
 shelby download config.json ./config.json -f
 ```
 
+**Recursive downloads — trailing-slash rule:** for `-r`, **both** the source prefix
+**and** the destination must end with `/` (or `\`). Omitting either fails with:
+```
+❌ Invalid Download Options
+⚠️  Recursive downloads require:
+    - The source prefix must end with '/'
+    - The destination path must end with '/' or '\'
+```
+The prefix is stripped on the way down, so `blobs/foo.bin` lands at `./local-images/foo.bin`.
+
 **Notes:**
 - Only one download can run at a time (lock file in `~/.shelby/`). Use `--allow-concurrent` to bypass.
-- For recursive downloads, the source should be a prefix (e.g., `images/`).
-- The destination directory's parent must exist.
-
-**Output:**
-```
-Downloading myfile.txt...
-  Size: 1.2 KB
-  Saved to: ./downloaded.txt
-
-Download complete!
-```
+- The destination directory's parent must exist; the CLI creates the leaf directory.
 
 ## shelby delete
 
@@ -406,7 +470,7 @@ shelby delete important-file.txt
 **Notes:**
 - For recursive deletion, the destination must end with `/`.
 - Without `--assume-yes`, you'll be prompted to confirm.
-- Deletion is on-chain only (removes metadata); blob data expires from storage nodes.
+- Deletion is on-chain only (removes metadata); blob data is subsequently reclaimed from storage nodes.
 
 **Output:**
 ```
@@ -418,7 +482,7 @@ Delete complete!
 
 ## shelby faucet
 
-Fund account with testnet tokens.
+Open the Shelby faucet web page to request tokens for the active account.
 
 ```bash
 shelby faucet [options]
@@ -427,13 +491,18 @@ shelby faucet [options]
 **Options:**
 | Option | Description |
 |--------|-------------|
-| `--network <network>` | Network to fund on (default: current context) |
-| `--no-open` | Don't open faucet URL in browser |
+| `--network <network>` | Network to request tokens for. Only `shelbynet` is accepted. Defaults to the current context's network. |
+| `--no-open` | Don't automatically open the browser, just print the URL |
 
 **Behavior:**
-- Opens the Shelby faucet page in your browser
-- Displays the account address to fund
-- Waits for funding confirmation
+- Opens the Shelby faucet page in your browser (or just prints the URL with `--no-open`).
+- Displays the account address to fund.
+- Then **blocks**, waiting for the funds to land (`Waiting for funds... Ctrl+C to cancel`).
+
+> **This step is not automatable.** The faucet is browser-driven — a human must open the
+> printed URL and complete it; the command only returns once funds arrive. It is the one
+> manual step in any otherwise-scripted workflow. A single completion funds **both APT
+> (gas) and ShelbyUSD (storage/micropayments)** on ShelbyNet.
 
 **Example:**
 ```bash
@@ -452,130 +521,115 @@ Funded! New balance:
   ShelbyUSD: 10000
 ```
 
-## shelby localnet
+## shelby locations
 
-Manage local development network.
-
-### shelby localnet start
-
-Start the local Shelby network.
+List the Shelby locations (regions) available for writes, or set the location **hint** on
+the active context.
 
 ```bash
-shelby localnet start [options]
+shelby locations              # list available locations
+shelby locations use <name>   # persist <name> as the active context's location_hint
 ```
 
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--docker-image <image>` | Custom Docker image |
-| `--port <port>` | RPC port (default: 8080) |
-| `--detach` | Run in background |
+**Subcommands:**
+| Command | Description |
+|---------|-------------|
+| `shelby locations` | List every activated location (region). Requires network access. |
+| `shelby locations use <location>` | Validate `<location>` against the contract and store it as `location_hint` on the current context, so subsequent uploads resolve a location without `--location`. Prints `✅ Location hint for context '<ctx>' set to '<location>'`. |
 
-**Requirements:**
-- Docker must be installed and running
-
-**Example:**
+**Use Case:**
+There is currently a **single location, `shelbynet-1`** — but a freshly created account has
+no default location, so `shelby upload` **fails** until a location can be resolved (see
+[`shelby upload`](#shelby-upload)). Either pass `--location` per upload, or set the hint
+once:
 ```bash
-# Start localnet
-shelby localnet start
+# One-time: set the context's default write location
+shelby locations use shelbynet-1
+shelby upload ./file.bin file.bin           # resolves via the context hint
 
-# Start in background
-shelby localnet start --detach
-
-# Start with custom port
-shelby localnet start --port 9090
-```
-
-**Output:**
-```
-Starting Shelby localnet...
-  Docker image: shelby/localnet:latest
-  RPC URL: http://localhost:8080/shelby/v1
-
-Localnet is running!
-Press Ctrl+C to stop.
-```
-
-### shelby localnet stop
-
-Stop the local network (if running in detached mode).
-
-```bash
-shelby localnet stop
-```
-
-### shelby localnet status
-
-Check localnet status.
-
-```bash
-shelby localnet status
-```
-
-**Output:**
-```
-Localnet status: running
-  RPC URL: http://localhost:8080/shelby/v1
-  Uptime: 2h 15m
+# Or resolve it inline per upload
+LOCATION="$(shelby locations | awk '/^  / {print $1; exit}')"
+shelby upload ./file.bin file.bin --location "$LOCATION"
 ```
 
 ## shelby commitment
 
-Generate file commitments (for advanced use cases).
+Compute commitments for a file and write them to an output JSON file. Intended for
+debugging and introspection.
 
 ```bash
-shelby commitment <path> [options]
+shelby commitment <input> <output>
 ```
 
 **Arguments:**
 | Argument | Description |
 |----------|-------------|
-| `<path>` | File to generate commitment for |
-
-**Options:**
-| Option | Description |
-|--------|-------------|
-| `--output <format>` | Output format: `json`, `hex` (default: json) |
+| `<input>` | File to compute the commitment for |
+| `<output>` | Path to the output JSON file to write |
 
 **Example:**
 ```bash
-shelby commitment ./myfile.txt
-```
-
-**Output:**
-```json
-{
-  "commitment": "0x...",
-  "size": 1234,
-  "chunks": 3
-}
+shelby commitment ./myfile.txt ./myfile.commitment.json
 ```
 
 **Use Case:**
 Commitments are used for verifying file integrity and for advanced upload flows where you need to pre-register blobs before uploading.
 
-## Environment Variables
+## Scripting the CLI
 
-| Variable | Description |
-|----------|-------------|
-| `SHELBY_CONFIG` | Path to config file (default: `~/.shelby/config.yaml`) |
-| `SHELBY_CONTEXT` | Override current context |
-| `SHELBY_ACCOUNT` | Override current account |
-| `SHELBY_VERBOSE` | Enable verbose output (`1` or `true`) |
+The CLI is built for humans: command output is colorized, line-wrapped ANSI tables and
+**there is no `--json` / machine-readable flag** (verified on v0.2.0). Don't scrape
+`account list` / `account balance` / `account blobs` for values. Instead:
 
-**Example:**
+**Read account address & private key from the config file, not `account list`:**
 ```bash
-SHELBY_CONTEXT=local shelby upload ./file.txt file.txt -e "in 7 days"
+CONFIG="$HOME/.shelby/config.yaml"
+# Values live under accounts.<name>.{address,private_key}. address is quoted;
+# private_key is unquoted AIP-80 (ed25519-priv-0x...). A YAML tool is most robust:
+ADDRESS=$(yq '.accounts["shelby-demo"].address' "$CONFIG")
+PRIVATE_KEY=$(yq '.accounts["shelby-demo"].private_key' "$CONFIG")
 ```
+
+**Read a balance by stripping ANSI and matching `<number> <UNIT>`** (robust to column
+wrapping — don't assume column positions):
+```bash
+shelby account balance \
+  | sed $'s/\x1b\\[[0-9;]*m//g' \
+  | grep -oE '[0-9][0-9.,]*[[:space:]]+ShelbyUSD' | head -n1 | grep -oE '^[0-9.,]+'
+```
+
+**Resolve the write location** rather than hard-coding it:
+```bash
+LOCATION="$(shelby locations | awk 'NR>1 {print $1; exit}')"
+```
+
+**End-to-end pattern:** `init --setup-default` → `context use shelbynet` →
+`account create` → read `address`/`private_key` from `config.yaml` → **`faucet`
+(manual, blocking — a human completes it)** → `locations` → `upload --location <name>` →
+`download -r` with a trailing `/` on **both** paths → verify checksums. The faucet is the
+only step that can't be automated.
+
+## Configuration overrides
+
+The CLI reads configuration from `~/.shelby/config.yaml` (or a project-local
+`.shelby/config.yaml` when `config_location_behavior` is set to `walk`). Override
+selection per-invocation with the global flags:
+
+```bash
+# Use a specific config file, context, and account for one command
+shelby -C ./my-config.yaml -c shelbynet -a default upload ./file.txt file.txt --location shelbynet-1
+```
+
+| Flag | Description |
+|------|-------------|
+| `-C, --config-file <path>` | Path to the config file to load |
+| `-c, --context <name>` | Context to load endpoints from |
+| `-a, --account <name>` | Account to load signing credentials from |
+| `-v, --verbose` | Enable verbose logging |
 
 ## Exit Codes
 
 | Code | Description |
 |------|-------------|
 | 0 | Success |
-| 1 | General error |
-| 2 | Configuration error |
-| 3 | Network error |
-| 4 | Authentication error |
-| 5 | File not found |
-| 6 | Blob not found |
+| Non-zero | Failure (the CLI exits `1` on error and prints a message describing the cause) |
