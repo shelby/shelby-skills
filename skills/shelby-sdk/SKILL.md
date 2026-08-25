@@ -5,54 +5,49 @@ description: Build decentralized storage applications with the Shelby Protocol S
 
 # Shelby Protocol SDK
 
-The Shelby Protocol SDK enables decentralized blob storage on the Aptos blockchain. This skill covers the core SDK and React hooks.
+The Shelby Protocol SDK enables decentralized blob storage on the Aptos blockchain. This skill covers the core SDK (`@shelby-protocol/sdk`) and the React hooks (`@shelby-protocol/react`).
 
-## Cross-Chain Wallet Support
+> **Which network?** ShelbyNet is currently the only working network. `Network.SHELBYNET` is the SDK default — use it. See [Networks](#networks).
+>
+> **Writes need a location.** As of the current release you must be able to resolve a write *location* (region) or on-chain registration aborts. A freshly created account has no default location, so pass `selectedLocation` (or set `locationHint`) on upload. See [Locations](#locations).
 
-The `@shelby-protocol/react` hooks support **all wallet types** through the `Signer` type:
+## Package Versions
+
+Use these versions (verified against the published packages):
+
+```jsonc
+"@shelby-protocol/sdk": "^0.8.0",
+"@shelby-protocol/react": "^4.2.0",     // only if you use the React hooks
+"@aptos-labs/ts-sdk": "^5.2.1 || ^6.0.0" // required as a direct/peer dependency
+```
+
+> The SDK moved fast through `0.0.x`. If you are reading older docs or AI output pinned to `@shelby-protocol/sdk@^0.0.9` / `@shelby-protocol/react@^0.0.5`, treat them as stale — many methods and types below were renamed (`getBlobMetadata` → `getFullObjectMetadata`, `deleteBlob` → `deleteObject`, `BlobMetadata` → `FullObjectMetadata`, `putBlob` → `putBlobChunksets`).
+
+## Wallet Support
+
+The `@shelby-protocol/react` hooks accept a `Signer` that covers both native Aptos accounts and Aptos wallet adapters:
 
 ```typescript
 type Signer = AccountSigner | WalletAdapterSigner;
 
-// AccountSigner = Aptos Account (for Node.js / direct key usage)
-// WalletAdapterSigner = { account, signAndSubmitTransaction } (for any wallet adapter)
+// AccountSigner       = Aptos Account (Node.js / direct key usage)
+// WalletAdapterSigner = { account, signAndSubmitTransaction } (any Aptos wallet adapter)
 ```
 
-For Ethereum wallet integration (DAA with SIWE), see the **shelby-ethereum-kit** skill. For Solana wallet integration (DAA with SIWS), see the **shelby-solana-kit** skill.
+> **Non-Aptos wallets?** The former Ethereum/Solana DAA wallet kits are **deprecated**. For
+> integrations that don't use an Aptos account, use the Shelby **S3 gateway** (an
+> S3-compatible, wallet-agnostic API) rather than deriving a storage account from an
+> external-chain wallet.
 
-### Package Versions
-
-Use the correct versions (as of 2026):
-```bash
-"@shelby-protocol/sdk": "^0.0.9"
-"@shelby-protocol/react": "^0.0.5"
-"@aptos-labs/ts-sdk": "^5.1.0"  # Required as direct dependency
-```
-
-### API Response Field Names
-
-When listing blobs with `getAccountBlobs()`, the response uses:
-- `blobNameSuffix` (not `name` or `blobName`)
-- `creationMicros` (not `created_at`)
-- `expirationMicros` (not `expiration`)
-
-```typescript
-interface BlobData {
-  name: string;           // Full blob name with account prefix
-  blobNameSuffix: string; // The blob name without account prefix (use this)
-  size: number;
-  creationMicros: number; // Microseconds since epoch
-  expirationMicros: number;
-}
-```
+> ⚠️ **Wallet uploads are unauthenticated.** `useUploadBlobs` accepts both `Account` and wallet-adapter signers. For a wallet it runs register → upload → commit internally (Account signers use `batchUpload`); the byte-upload is **address-only / unauthenticated** (a wallet can't sign the RPC ownership challenge), so it needs an RPC that doesn't require upload auth — ShelbyNet does — and each blob costs one register + one commit prompt. On-chain hooks (register, delete, metadata) work with both signer types. See `references/react.md`.
 
 ## Installation
 
 ```bash
-# Core SDK
-pnpm install @shelby-protocol/sdk
+# Core SDK (plus the required Aptos SDK)
+pnpm install @shelby-protocol/sdk @aptos-labs/ts-sdk
 
-# For React hooks (works with Aptos, Ethereum, and Solana wallets)
+# React hooks (works with Aptos, Ethereum, and Solana wallets)
 pnpm install @shelby-protocol/react @tanstack/react-query
 ```
 
@@ -62,20 +57,21 @@ pnpm install @shelby-protocol/react @tanstack/react-query
 import { ShelbyNodeClient } from "@shelby-protocol/sdk/node";
 import { Network, Account } from "@aptos-labs/ts-sdk";
 
-// Initialize client
+// Initialize client (SHELBYNET is the default and only working network)
 const client = new ShelbyNodeClient({ network: Network.SHELBYNET });
 const account = Account.generate();
 
-// Fund the account (testnet only)
-await client.fundAccountWithShelbyUSD({ address: account.accountAddress, amount: 1_000_000 });
+// Fund the account on ShelbyNet
 await client.fundAccountWithAPT({ address: account.accountAddress, amount: 1_000_000 });
+await client.fundAccountWithShelbyUSD({ address: account.accountAddress, amount: 1_000_000 });
 
-// Upload a blob
+// Discover a write location, then upload a blob
+const [location] = await client.metadata.getLocationNames();
 await client.upload({
   blobData: Buffer.from("Hello, Shelby!"),
   signer: account,
   blobName: "hello.txt",
-  expirationMicros: Date.now() * 1000 + 86400_000_000, // 24 hours
+  options: { selectedLocation: location },              // required on a fresh account
 });
 
 // Download a blob
@@ -92,19 +88,17 @@ while (true) {
   if (done) break;
   chunks.push(value);
 }
-const data = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
 ```
 
 ## Quick Start - React Hooks
 
-The React hooks work with **any wallet type** through the `Signer` interface.
+The React hooks perform on-chain operations with any `Signer`. `useUploadBlobs` uploads with both `Account` and wallet-adapter signers (wallet uploads are unauthenticated — see the caveat above).
 
 ```tsx
 import { ShelbyClientProvider, useAccountBlobs, useUploadBlobs } from "@shelby-protocol/react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Network } from "@aptos-labs/ts-sdk";
+import { Network, Account } from "@aptos-labs/ts-sdk";
 
 const queryClient = new QueryClient();
 const shelbyClient = new ShelbyClient({ network: Network.SHELBYNET });
@@ -119,33 +113,24 @@ function App() {
   );
 }
 
-function StorageComponent() {
-  const { account, signAndSubmitTransaction } = useWallet();
+function StorageComponent({ account }: { account: Account }) {
+  // List blobs for an account
+  const { data: blobs, isLoading } = useAccountBlobs({ account: account.accountAddress });
 
-  // List blobs for current account
-  const { data: blobs, isLoading } = useAccountBlobs({
-    account: account?.address,
-  });
-
-  // Upload blobs - hook takes optional client, mutation takes signer
-  const { mutateAsync: uploadBlobs } = useUploadBlobs({
-    client: shelbyClient,
-  });
+  // Upload blobs — hook takes optional client, mutation takes the signer
+  const { mutateAsync: uploadBlobs } = useUploadBlobs({ client: shelbyClient });
 
   const handleUpload = async (file: File) => {
     const data = new Uint8Array(await file.arrayBuffer());
+    const [location] = await shelbyClient.metadata.getLocationNames();
     await uploadBlobs({
-      signer: { account: account?.address, signAndSubmitTransaction },
+      signer: account,                          // Account signer (wallets upload via the register+commit chain)
       blobs: [{ blobData: data, blobName: file.name }],
-      expirationMicros: Date.now() * 1000 + 86400_000_000,
+      options: { selectedLocation: location },
     });
   };
 
-  return (
-    <div>
-      {isLoading ? "Loading..." : `${blobs?.length ?? 0} blobs`}
-    </div>
-  );
+  return <div>{isLoading ? "Loading..." : `${blobs?.length ?? 0} blobs`}</div>;
 }
 ```
 
@@ -153,17 +138,9 @@ See `references/react.md` for full React hooks documentation.
 
 ## Key Concepts
 
-### Expiration Time
+### No blob expiration
 
-All blobs have an expiration time in **microseconds** since Unix epoch:
-
-```typescript
-// 24 hours from now
-const expirationMicros = Date.now() * 1000 + 86400_000_000;
-
-// 7 days from now
-const expirationMicros = Date.now() * 1000 + 7 * 24 * 3600 * 1_000_000;
-```
+Blobs no longer take an expiration. As of `@shelby-protocol/sdk@0.8.0` blob registration was moved to the protocol's **fixed payment window** (a fixed registration fee), so uploads take no `expirationMicros` / duration parameter and blob metadata carries no expiry. There is nothing to configure — the window is set by the protocol. (This is distinct from **micropayment channel** expiration, which is unchanged; see `references/advanced.md`.)
 
 ### Blob Naming
 
@@ -176,21 +153,67 @@ await client.upload({
 });
 ```
 
-The full blob key is: `@{account_address}/{blob_name}`
+The full blob key is `@{account_address}/{blob_name}`.
+
+### Locations
+
+A **location** is a region a blob's data is written to. Writes resolve a location on-chain at registration; if none can be resolved the transaction **aborts** (`E_NO_LOCATION_SELECTED` → "No write location could be resolved…"). A freshly created account has no default location, so you must supply one.
+
+Resolution order for a write:
+1. `options.selectedLocation` — **authoritative**. The write lands there or aborts (e.g. it conflicts with the account's locked location preference).
+2. `options.locationHint` / `ShelbyClientConfig.locationHint` — best-effort; honored only when the account is in the default `FollowHint` preference mode.
+3. The account's on-chain default location preference, if set.
+
+```typescript
+// List the activated locations (regions) for the network
+const locations = await client.metadata.getLocationNames();
+// ShelbyNet currently exposes a single location.
+
+await client.upload({
+  blobData,
+  signer: account,
+  blobName: "file.txt",
+  options: { selectedLocation: locations[0] },
+});
+
+// Or set a client-wide default hint (used when no per-write selectedLocation)
+const client = new ShelbyClient({ network: Network.SHELBYNET, locationHint: locations[0] });
+
+// The SDK also exports each network's default hint as a convenience — the SDK does
+// not apply it automatically, so pass it explicitly (the CLI applies it for you):
+import { NetworkToDefaultLocationHint } from "@shelby-protocol/sdk";
+// NetworkToDefaultLocationHint[Network.SHELBYNET] === "shelbynet-1"
+```
 
 ### Networks
 
 ```typescript
 import { Network } from "@aptos-labs/ts-sdk";
+import { shelbyNetworks, isShelbyNetwork } from "@shelby-protocol/sdk";
 
-// Available networks
-Network.SHELBYNET  // Main testnet
+// ShelbyNetwork = Network.LOCAL | Network.SHELBYNET | Network.CUSTOM
+Network.SHELBYNET  // The Shelby development network (default) — use this
 Network.LOCAL      // Local development
+Network.CUSTOM     // Self-configured deployment (see below); not offered by pickers
+
+// shelbyNetworks === [Network.LOCAL, Network.SHELBYNET]  — CUSTOM is deliberately excluded
+// isShelbyNetwork("custom") === true
 ```
+
+| Network | Status | Notes |
+|---------|--------|-------|
+| `Network.SHELBYNET` | ✅ Available | The working network and the SDK default. |
+| `Network.LOCAL` | ⚙️ Dev only | Requires a locally running Shelby stack. |
+| `Network.CUSTOM` | 🔧 Self-configured | For a deployment the SDK ships no defaults for (e.g. a private network). You must supply every endpoint and contract address yourself (see [Custom networks](#custom-networks)). Excluded from `shelbyNetworks`, so network pickers/schemas don't offer it. |
+| Testnet | ⛔ Removed | `Network.TESTNET` is **no longer a valid `ShelbyNetwork`**; testnet has been taken down. |
+
+#### Custom networks
+
+`Network.CUSTOM` (added in `@shelby-protocol/sdk@0.8.0`) ships no defaults, so the config must supply its own endpoints and contract addresses via `ShelbyClientConfig`: `aptos.fullnode`, `indexer.baseUrl`, `rpc.baseUrl`, `deployer`, `micropaymentsDeployer` (for a micropayment client), and `locationHint`. Construction is rejected up front if the fullnode is missing, rather than failing on the first request. On a custom network the deployers **do not** fall back to `SHELBY_DEPLOYER` / `MICROPAYMENTS_DEPLOYER` (that would silently address the shelbynet contracts), so set them explicitly.
 
 ### API Keys
 
-API keys authenticate your app and manage rate limits. Without one, requests run in "anonymous" mode with lower limits.
+API keys authenticate your app and manage rate limits. Without one, requests run in "anonymous" mode with lower limits. Pass it as `apiKey` in `ShelbyClientConfig`.
 
 Instructions on obtaining an API key: https://docs.shelby.xyz/sdks/typescript/acquire-api-keys
 
@@ -198,37 +221,42 @@ Instructions on obtaining an API key: https://docs.shelby.xyz/sdks/typescript/ac
 
 ```typescript
 interface ShelbyClientConfig {
-  // Required: The Shelby network
+  // Required: the Shelby network (Network.SHELBYNET | Network.LOCAL)
   network: ShelbyNetwork;
 
   // Optional: API key for authentication
   apiKey?: string;
 
-  // Optional: Custom deployer address
-  deployer?: AccountAddress;
-
-  // Optional: Custom Aptos blockchain settings
+  // Optional: custom Aptos blockchain settings (AptosSettings)
   aptos?: AptosSettings;
 
-  // Optional: Custom RPC node configuration
-  rpc?: {
-    baseUrl?: string;
-    apiKey?: string;
-  };
+  // Optional: custom Shelby-contract deployer address (defaults to SHELBY_DEPLOYER;
+  // no default on Network.CUSTOM)
+  deployer?: AccountAddress;
 
-  // Optional: Custom indexer configuration
-  indexer?: {
-    baseUrl?: string;
-    apiKey?: string;
-  };
+  // Optional: custom micropayments-contract deployer, addressed separately from the
+  // Shelby contract (defaults to MICROPAYMENTS_DEPLOYER; no default on Network.CUSTOM)
+  micropaymentsDeployer?: AccountAddress;
 
-  // Optional: Custom faucet URL
-  faucet?: string;
+  // Optional: custom Shelby RPC node configuration
+  rpc?: { baseUrl?: string; apiKey?: string };
 
-  // Optional: Gas station API key (for sponsored transactions in cross-chain kits)
-  gasStationApiKey?: string;
+  // Optional: custom indexer (GraphQL) configuration
+  indexer?: { baseUrl?: string; apiKey?: string };
+
+  // Optional: custom faucet configuration (now an object, not a string)
+  faucet?: { baseUrl?: string; authToken?: string };
+
+  // Optional: use Aptos orderless transactions (random-nonce replay protection)
+  // so a single account can submit concurrently without sequence-number collisions.
+  orderless?: boolean;
+
+  // Optional: best-effort location hint applied to every write from this client.
+  locationHint?: string;
 }
 ```
+
+> **Note:** There is no longer a `gasStationApiKey` field. Shelby-fee (ShelbyUSD) sponsorship is now configured per-operation via `options.usdSponsor` together with an Aptos `TRANSACTION_SUBMITTER` plugin. See `references/api-reference.md` (WriteBlobCommitmentsOptions / UsdSponsorOptions).
 
 ## Core Operations
 
@@ -236,16 +264,21 @@ interface ShelbyClientConfig {
 
 ```typescript
 await client.upload({
-  blobData: Uint8Array,           // Required: The data to upload
-  signer: Account,                 // Required: Account that signs/pays
-  blobName: string,                // Required: Name/path of the blob
-  expirationMicros: number,        // Required: Expiration in microseconds
-  options?: {
-    chunksetSizeBytes?: number,    // Optional: Custom chunkset size
-    build?: { options?: InputGenerateTransactionOptions },
+  blobData: Uint8Array,      // Required: the data to upload
+  signer: Account,           // Required: account that signs/pays
+  blobName: string,          // Required: name/path of the blob
+  options?: {                // WriteBlobCommitmentsOptions
+    selectedLocation?: string,   // Authoritative write location (see Locations)
+    locationHint?: string,       // Best-effort hint
+    chunksetSizeBytes?: number,  // Custom chunkset size
+    usdSponsor?: { feePayerAddress: AccountAddress }, // ShelbyUSD fee sponsorship
+    build?: { options?: InputGenerateTransactionOptions; withFeePayer?: boolean },
+    submit?: InputTransactionPluginData,
   },
 });
 ```
+
+`upload()` buffers the whole blob in memory (accepts `Uint8Array`). For very large / streaming uploads, orchestrate the steps manually (`generateCommitments()` → `coordination.registerBlob()` → `rpc.putBlobChunksets()` → `coordination.commitObject()`); see `references/advanced.md`.
 
 ### Batch Upload
 
@@ -255,8 +288,8 @@ await client.batchUpload({
     { blobData: Buffer.from("File 1"), blobName: "file1.txt" },
     { blobData: Buffer.from("File 2"), blobName: "file2.txt" },
   ],
-  expirationMicros: Date.now() * 1000 + 86400_000_000,
   signer: account,
+  options: { selectedLocation },
 });
 ```
 
@@ -264,21 +297,28 @@ await client.batchUpload({
 
 ```typescript
 const blob = await client.download({
-  account: AccountAddressInput,  // The blob owner's address
-  blobName: string,               // The blob name
-  range?: { start: number; end?: number },  // Optional: partial download
+  account: AccountAddressInput,             // The blob owner's address
+  blobName: string,                          // The blob name
+  range?: { start: number; end?: number },   // Optional: partial download
 });
 
-// blob.readable is a ReadableStream
-// blob.contentLength is the size in bytes
+// blob.readable      — a ReadableStream of the blob data
+// blob.contentLength  — size in bytes
 ```
 
 ### Delete
 
 ```typescript
-const { transaction } = await client.coordination.deleteBlob({
+// Single
+const { transaction } = await client.coordination.deleteObject({
   account: signer,
   blobName: "file-to-delete.txt",
+});
+
+// Multiple (atomic)
+const { transaction } = await client.coordination.deleteMultipleObjects({
+  account: signer,
+  blobNames: ["a.txt", "b.txt"],   // suffixes, without the @address prefix
 });
 ```
 
@@ -290,77 +330,83 @@ const blobs = await client.coordination.getAccountBlobs({
   pagination: { limit: 10, offset: 0 },
 });
 
-// Response structure:
-// blobs: Array<{
-//   name: string;           // Full name with account prefix
-//   blobNameSuffix: string; // Just the blob name (use this)
-//   size: number;
-//   creationMicros: number;
-//   expirationMicros: number;
-// }>
+// Returns FullObjectMetadata[]:
+//   name            — full name with @address prefix
+//   blobNameSuffix  — just the blob name (use this)
+//   size, encoding, creationMicros, sliceAddress, isWritten
+//   uid?, encryption?, isDeleted?
 
-// Example: Map to a cleaner structure
 const files = blobs.map(blob => ({
   name: blob.blobNameSuffix,
   size: blob.size,
   createdAt: new Date(blob.creationMicros / 1000),
-  expiresAt: new Date(blob.expirationMicros / 1000),
 }));
 ```
 
 ## Error Handling
-
-Common errors and how to handle them:
 
 ```typescript
 import {
   isBlobAlreadyExistsError,
   isAccessDeniedError,
   isBlobNotFoundError,
-  isBlobExpiredError,
+  describeLocationError,     // human-readable message for location failures
   StaleChannelStateError,
 } from "@shelby-protocol/sdk";
 
 try {
-  await client.upload({ ... });
+  await client.upload({ /* ... */ });
 } catch (error) {
-  if (isBlobNotFoundError(error.message)) {
-    // Blob doesn't exist
+  const message = String(error?.message ?? error);
+
+  // Location resolution failures (write region) — new in this release
+  const locationProblem = describeLocationError(message);
+  if (locationProblem) {
+    // e.g. "No write location could be resolved…" → pass options.selectedLocation
   }
-  if (isBlobAlreadyExistsError(error.message)) {
-    // Blob already registered
-  }
-  if (isAccessDeniedError(error.message)) {
-    // Permission denied
-  }
-  if (isBlobExpiredError(error.message)) {
-    // Blob has expired
-  }
+
+  if (isBlobNotFoundError(message))      { /* blob doesn't exist */ }
+  if (isBlobAlreadyExistsError(message)) { /* name already registered */ }
+  if (isAccessDeniedError(message))      { /* permission denied */ }
+
   if (error instanceof StaleChannelStateError) {
-    // Micropayment channel state is stale
-    const serverState = error.storedMicropayment;
+    const serverState = error.storedMicropayment; // sync local state and retry
   }
 }
 ```
 
+See `references/api-reference.md` for the full `ShelbyErrorCodes` / `ShelbyLocationErrorCodes` enums.
+
 ## HTTP Access
 
-Download files directly via HTTP:
+Download files directly via HTTP against the ShelbyNet RPC node:
 
 ```bash
 curl https://api.shelbynet.shelby.xyz/shelby/v1/blobs/{account_address}/{blob_name}
 ```
 
+`new ShelbyClient({ network: Network.SHELBYNET })` connects to ShelbyNet with **no endpoint configuration needed** — its built-in defaults are live. The client's own default RPC host is `shelby.shelbynet.shelby.xyz`; the `api.shelbynet.shelby.xyz` host used above (and by the CLI) is an equally valid gateway to the same deployment. Note both host and path carry a `/v1`: `api.shelbynet.shelby.xyz/v1` is the **Aptos fullnode**, while blobs are served by the **Shelby RPC** under `/shelby` (hence `/shelby/v1/blobs/…`).
+
+The SDK also exports the network→URL maps if you need them programmatically:
+
+```typescript
+import { NetworkToShelbyRPCBaseUrl } from "@shelby-protocol/sdk";
+// NetworkToShelbyRPCBaseUrl.shelbynet is the RPC base the client uses by default.
+```
+
+Override `rpc.baseUrl` / `indexer.baseUrl` in `ShelbyClientConfig` only if you need to point at a non-default deployment.
+
 ## Reference Files
 
-For detailed API documentation, see:
-
-- `references/api-reference.md` - Full API documentation for ShelbyClient, ShelbyBlobClient, ShelbyRPCClient
-- `references/react.md` - React hooks documentation (works with all wallet types)
-- `references/advanced.md` - Micropayments, erasure coding, streaming, low-level operations
-- `references/sdk-feedback.md` - Known issues and improvement recommendations for the SDK
+- `references/api-reference.md` — Full API for `ShelbyClient`, `ShelbyBlobClient`, `ShelbyRPCClient`, `ShelbyMetadataClient`, `ShelbyMicropaymentChannelClient`, `ShelbyPlacementGroupClient`
+- `references/react.md` — React hooks (includes the browser-upload caveat and Account-signer flow)
+- `references/advanced.md` — Micropayments, erasure coding, the register→upload→commit flow, parallel commitments, low-level SP writes
+- `references/sdk-feedback.md` — Known issues and rough edges in the current SDK
 
 ## Related Skills
 
-- **shelby-ethereum-kit** - Ethereum wallet integration via Derived Account Abstraction (DAA)
-- **shelby-solana-kit** - Solana wallet integration via Derived Account Abstraction (DAA)
+- **shelby-cli** — Command-line uploads/downloads/account management (mirrors the location + shelbynet defaults)
+- **shelby-media** — Video transcoding, adaptive streaming, and DRM on top of the SDK
+
+> Non-Aptos wallet integrations (formerly the Ethereum/Solana DAA kits) are **deprecated** —
+> use the Shelby **S3 gateway** instead.

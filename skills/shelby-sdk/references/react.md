@@ -1,17 +1,22 @@
 # React Hooks Reference
 
+`@shelby-protocol/react@^4.2.0` — TanStack Query hooks for Shelby, on top of `@shelby-protocol/sdk`.
+
+> ⚠️ **Wallet uploads are unauthenticated.** `useUploadBlobs` works with both `Account` and wallet-adapter signers. For a wallet it runs register → chunkset upload → commit internally (the same steps as `useEncodeBlobs`/`useRegisterCommitments`/`useCommitBlobs`); the byte-upload is **address-only / unauthenticated** (a wallet can't sign the RPC ownership challenge), so it needs an RPC that accepts that — ShelbyNet does — and each blob costs one register prompt + one commit prompt. `Account` signers use the single `batchUpload` path. On-chain register/delete and read queries work with both signer types. See the wallet-upload notes below.
+
 ## Table of Contents
 
 - [Installation](#installation)
 - [Setup](#setup)
 - [Signer Types](#signer-types)
+- [Hook Options Pattern](#hook-options-pattern)
 - [Query Hooks](#query-hooks)
   - [useAccountBlobs](#useaccountblobs)
-  - [useBlobMetadata](#useblobmetadata)
+  - [useFullObjectMetadata](#usefullobjectmetadata)
 - [Mutation Hooks](#mutation-hooks)
   - [useUploadBlobs](#useuploadblobs)
-  - [useDeleteBlob](#usedeleteblob-deprecated)
-  - [useDeleteBlobs](#usedeleteblobs)
+  - [useDeleteObjects](#usedeleteobjects)
+  - [useDeleteObject (deprecated)](#usedeleteobject-deprecated)
   - [useEncodeBlobs](#useencodeblobs)
   - [useRegisterCommitments](#useregistercommitments)
   - [useCommitBlobs](#usecommitblobs)
@@ -21,17 +26,25 @@
 ## Installation
 
 ```bash
-pnpm install @shelby-protocol/react @tanstack/react-query
+pnpm install @shelby-protocol/react @shelby-protocol/sdk @tanstack/react-query @aptos-labs/ts-sdk
 ```
 
-**Peer Dependencies:**
-- `@tanstack/react-query` >= 5.0.0 - Required for data fetching and caching
-- `@aptos-labs/ts-sdk` >= 5.0.0 - Required for Aptos types
-- `@aptos-labs/wallet-adapter-react` (optional) - For native Aptos wallets
+**Peer dependencies (from the package):**
+
+| Package | Range |
+|---------|-------|
+| `@shelby-protocol/sdk` | `>=0.5.0 <1.0.0` |
+| `@tanstack/react-query` | `>=5.0.0` |
+| `@aptos-labs/ts-sdk` | `^5.2.1 \|\| ^6.0.0` |
+| `@aptos-labs/wallet-adapter-react` | `^6.0.0 \|\| ^7.0.0` (for native Aptos wallets) |
+| `react` / `react-dom` | `^18.0.0 \|\| ^19.0.0` |
+| `typescript` | `>=5.0.4` |
+
+The package also exposes a framework-agnostic `@shelby-protocol/react/core` subpath (query builders + `getUse*QueryKey` helpers) for advanced cache control.
 
 ## Setup
 
-Wrap your app with `ShelbyClientProvider` inside a `QueryClientProvider`. The provider takes a `client` prop (a `ShelbyClient` instance):
+Wrap your app with `ShelbyClientProvider` inside a `QueryClientProvider`. The provider takes a `client` prop (a browser `ShelbyClient`):
 
 ```tsx
 import { ShelbyClientProvider } from "@shelby-protocol/react";
@@ -56,71 +69,43 @@ function App() {
 }
 ```
 
-### ShelbyClientProvider Props
-
-```typescript
-interface ShelbyClientProviderProps {
-  client: ShelbyClient;         // Required: A ShelbyClient instance
-  children: React.ReactNode;
-}
-```
+`useShelbyClient(client?)` resolves the client from context (or a passed override) if you need it imperatively.
 
 ## Signer Types
 
-All mutation hooks that perform on-chain transactions accept a `Signer` type, which supports both native Aptos accounts and cross-chain wallet adapters:
+Mutation hooks that submit on-chain transactions accept a `Signer`:
 
 ```typescript
 type Signer = AccountSigner | WalletAdapterSigner;
 
-// AccountSigner = Account (from @aptos-labs/ts-sdk)
-// Used for Node.js scripts or direct key access
-
+// AccountSigner = Account (from @aptos-labs/ts-sdk) — Node scripts or direct key access
 type WalletAdapterSigner = {
   account?: AccountAddressInput | { address: AccountAddressInput } | null;
-  signAndSubmitTransaction: SignAndSubmitTransactionFn;
+  signAndSubmitTransaction: SignAndSubmitTransactionFn;   // from useWallet()
 };
-// Works with:
-// - useWallet() from @aptos-labs/wallet-adapter-react
-// - useStorageAccount() from @shelby-protocol/ethereum-kit/react
-// - useStorageAccount() from @shelby-protocol/solana-kit/react
 ```
 
-The hook detects the signer type at runtime: if `signAndSubmitTransaction` is present on the signer, it uses the wallet adapter path; otherwise, it uses the `Account` signer path.
+`WalletAdapterSigner` works with `useWallet()` from `@aptos-labs/wallet-adapter-react` (any Aptos wallet adapter). The hook detects the type at runtime: if `signAndSubmitTransaction` is present it uses the wallet path, otherwise the `Account` path.
+
+> Reminder: `useUploadBlobs` accepts both signer types; for a **wallet** the byte-upload is unauthenticated (address-only), so it needs a permissive RPC — ShelbyNet. `useCommitBlobs` is the lower-level wallet commit step (also unauthenticated).
 
 ## Hook Options Pattern
 
-All mutation hooks follow the `UseMutationOptionsWithClient` pattern:
-
-```typescript
-type UseMutationOptionsWithClient = {
-  client?: ShelbyClient | null;  // Optional: override context client
-  // ... all standard @tanstack/react-query UseMutationOptions
-  onSuccess?: (data) => void;
-  onError?: (error) => void;
-  onSettled?: () => void;
-};
-```
-
-If `client` is not provided, the hook uses the client from `ShelbyClientProvider` context.
+Mutation hooks follow `UseMutationOptionsWithClient`; query hooks follow `UseQueryOptionsWithClient`. Both add an optional `client` override and otherwise pass through the standard TanStack Query options (`onSuccess`, `onError`, `enabled`, `staleTime`, …). If `client` is omitted, the hook uses the `ShelbyClientProvider` context.
 
 ## Query Hooks
 
 ### useAccountBlobs
 
-Fetches all blobs for an account with pagination, filtering, and ordering.
+Fetches blobs for an account (`FullObjectMetadata[]`) with pagination, filtering, and ordering.
 
 ```tsx
 import { useAccountBlobs } from "@shelby-protocol/react";
 import { Order_By } from "@shelby-protocol/sdk/browser";
 
-function BlobList() {
-  const {
-    data: blobs,
-    isLoading,
-    error,
-    refetch,
-  } = useAccountBlobs({
-    account: "0x123...",
+function BlobList({ address }: { address: string }) {
+  const { data: blobs, isLoading, error, refetch } = useAccountBlobs({
+    account: address,
     pagination: { limit: 20, offset: 0 },
     orderBy: { updated_at: Order_By.Desc },
   });
@@ -132,9 +117,9 @@ function BlobList() {
     <ul>
       {blobs?.map((blob) => (
         <li key={blob.name}>
-          {blob.blobNameSuffix} - {blob.size} bytes
+          {blob.blobNameSuffix} — {blob.size} bytes
           <br />
-          Expires: {new Date(blob.expirationMicros / 1000).toLocaleString()}
+          Created: {new Date(blob.creationMicros / 1000).toLocaleString()}
         </li>
       ))}
     </ul>
@@ -142,184 +127,111 @@ function BlobList() {
 }
 ```
 
-**Options:**
-```typescript
-interface UseAccountBlobsOptions extends UseQueryOptionsWithClient<BlobMetadata[]> {
-  account: AccountAddressInput;   // The account to fetch blobs for
-  pagination?: {
-    limit?: number;   // Max blobs to return
-    offset?: number;  // Number of blobs to skip
-  };
-  orderBy?: Blobs_Order_By;
-  where?: Omit<Blobs_Bool_Exp, "owner">;
-  client?: ShelbyClient | null;   // Optional: override context client
-}
-```
+**Options** (`UseAccountBlobsOptions`): the parameters of `ShelbyBlobClient.getAccountBlobs` (`account`, `pagination?`, `orderBy?`, `where?`) plus `client?` and standard query options. Returns `UseQueryResult<FullObjectMetadata[], Error>`. The query-key helper `getUseAccountBlobsQueryKey({ ...params, network })` is exported for manual invalidation.
 
-**Returns:** React Query result with `BlobMetadata[]`
+### useFullObjectMetadata
 
-### useBlobMetadata
-
-Fetches metadata for a specific blob. Returns `null` if the blob is not found.
+Metadata for a single blob. Returns `FullObjectMetadata | null` (`null` if not found).
 
 ```tsx
-import { useBlobMetadata } from "@shelby-protocol/react";
+import { useFullObjectMetadata } from "@shelby-protocol/react";
 
-function BlobDetails({ blobName }: { blobName: string }) {
-  const { data: metadata, isLoading } = useBlobMetadata({
-    account: "0x123...",
-    name: blobName,  // Note: uses `name`, not `blobName`
+function BlobDetails({ address, name }: { address: string; name: string }) {
+  const { data: metadata, isLoading } = useFullObjectMetadata({
+    account: address,
+    name,            // the blob name (suffix), not `blobName`
   });
 
   if (isLoading) return <div>Loading...</div>;
-
   return (
     <div>
       <p>Size: {metadata?.size} bytes</p>
-      <p>Created: {new Date(metadata?.creationMicros / 1000).toLocaleString()}</p>
-      <p>Expires: {new Date(metadata?.expirationMicros / 1000).toLocaleString()}</p>
+      <p>Written: {String(metadata?.isWritten)}</p>
+      <p>Created: {metadata ? new Date(metadata.creationMicros / 1000).toLocaleString() : "—"}</p>
     </div>
   );
 }
 ```
 
-**Options:**
-```typescript
-interface UseBlobMetadataOptions extends UseQueryOptionsWithClient<BlobMetadata | null> {
-  account: AccountAddressInput;
-  name: string;                   // The blob name (not blobName)
-  client?: ShelbyClient | null;
-}
-```
+> Renamed from the old `useBlobMetadata`. Query-key helper: `getUseFullObjectMetadataQueryKey`.
 
 ## Mutation Hooks
 
 ### useUploadBlobs
 
-Uploads one or more blobs to Shelby storage. Handles the complete upload process: encoding, on-chain registration, and data upload.
+Uploads one or more blobs (encode → register → chunkset upload → commit). Works with `Account` and wallet-adapter signers (wallet uploads are unauthenticated — needs a permissive RPC).
 
 ```tsx
 import { useUploadBlobs } from "@shelby-protocol/react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
-import { Network } from "@aptos-labs/ts-sdk";
+import { Network, Account } from "@aptos-labs/ts-sdk";
 
-function FileUploader() {
-  const shelbyClient = useMemo(() => new ShelbyClient({
-    network: Network.SHELBYNET,
-  }), []);
+const shelbyClient = new ShelbyClient({ network: Network.SHELBYNET });
 
-  // Hook takes optional client
-  const {
-    mutateAsync: uploadBlobs,
-    isPending,
-    error,
-  } = useUploadBlobs({
+function FileUploader({ signer }: { signer: Account }) {
+  const { mutateAsync: uploadBlobs, isPending, error } = useUploadBlobs({
     client: shelbyClient,
     onSuccess: () => console.log("Upload complete"),
   });
 
-  const handleUpload = async (files: FileList, signer: Signer) => {
+  const handleUpload = async (files: FileList) => {
     const blobs = await Promise.all(
       Array.from(files).map(async (file) => ({
         blobData: new Uint8Array(await file.arrayBuffer()),
         blobName: file.name,
-      }))
+      })),
     );
+    const [location] = await shelbyClient.metadata.getLocationNames();
 
-    // Mutation takes signer and blobs
     await uploadBlobs({
-      signer,
+      signer,                                     // Account signer
       blobs,
-      expirationMicros: Date.now() * 1000 + 7 * 24 * 3600 * 1_000_000, // 7 days
-      maxConcurrentUploads: 3, // Optional, default: 3
+      options: { selectedLocation: location },    // required on a fresh account
+      maxConcurrentUploads: 3,                     // optional, default 3
     });
   };
 
-  return (
-    <input
-      type="file"
-      multiple
-      onChange={(e) => e.target.files && handleUpload(e.target.files, signer)}
-      disabled={isPending}
-    />
-  );
+  return <input type="file" multiple disabled={isPending}
+    onChange={(e) => e.target.files && handleUpload(e.target.files)} />;
 }
 ```
 
-**Hook Options:**
-```typescript
-type UseUploadBlobsOptions = UseMutationOptionsWithClient<void, Error, UseUploadBlobsVariables>;
-```
+**Mutation variables (`UseUploadBlobsVariables`):**
 
-**Mutation Variables:**
 ```typescript
-interface UseUploadBlobsVariables {
-  signer: Signer;                // Required: Account or WalletAdapterSigner
-  blobs: Array<{
-    blobData: Uint8Array;
-    blobName: string;
-  }>;
-  expirationMicros: number;      // Required: expiration in microseconds
-  options?: UploadOptions;        // Optional: chunkset size, tx options
-  maxConcurrentUploads?: number;  // Optional: default 3
+{
+  signer: Signer;                 // Account or wallet-adapter signer
+  blobs: { blobName: string; blobData: Uint8Array }[];
+  options?: UploadOptions;         // selectedLocation / locationHint / chunksetSizeBytes / usdSponsor …
+  maxConcurrentUploads?: number;   // default 3
 }
 ```
 
-### useDeleteBlob (deprecated)
+### useDeleteObjects
 
-Deletes a single blob. **Deprecated** - use `useDeleteBlobs` instead.
-
-```tsx
-import { useDeleteBlob } from "@shelby-protocol/react";
-
-const { mutateAsync: deleteBlob } = useDeleteBlob({
-  client: shelbyClient,
-  onSuccess: ({ hash }) => console.log("Deleted:", hash),
-});
-
-await deleteBlob({
-  signer,
-  blobName: "folder/file.txt",
-});
-```
-
-### useDeleteBlobs
-
-Deletes one or more blobs. Automatically optimizes: uses `delete_blob` for single deletion, `delete_multiple_blobs` for batch.
+Deletes one or more blobs on-chain. Optimizes gas automatically (single vs. multi). Works with `Account` and wallet-adapter signers. Multi-delete is atomic. Returns `{ hash }`.
 
 ```tsx
-import { useDeleteBlobs } from "@shelby-protocol/react";
+import { useDeleteObjects } from "@shelby-protocol/react";
 
-const { mutateAsync: deleteBlobs } = useDeleteBlobs({
+const { mutateAsync: deleteObjects } = useDeleteObjects({
   client: shelbyClient,
   onSuccess: ({ hash }) => console.log("Delete tx:", hash),
 });
 
-// Delete a single blob
-await deleteBlobs({
-  signer,
-  blobNames: ["folder/file.txt"],
-});
-
-// Delete multiple blobs in one transaction
-await deleteBlobs({
-  signer,
-  blobNames: ["folder/file1.txt", "folder/file2.txt"],
-});
+await deleteObjects({ signer, blobNames: ["folder/file.txt"] });                 // single
+await deleteObjects({ signer, blobNames: ["a.txt", "b.txt"] });                   // atomic batch
 ```
 
-**Mutation Variables:**
-```typescript
-interface UseDeleteBlobsVariables {
-  signer: Signer;
-  blobNames: string[];                        // Blob names without account prefix
-  options?: InputGenerateTransactionOptions;   // Optional tx options
-}
-```
+**Variables (`UseDeleteObjectsVariables`):** `{ signer: Signer; blobNames: string[]; options?: InputGenerateTransactionOptions }`. `blobNames` are suffixes without the `@address` prefix.
+
+### useDeleteObject (deprecated)
+
+Single-blob delete. **Deprecated — prefer `useDeleteObjects`.** Variables: `{ signer: Signer; blobName: string; options?: InputGenerateTransactionOptions }`, returns `{ hash }`.
 
 ### useEncodeBlobs
 
-Encodes blobs using erasure coding. Returns `BlobCommitments[]`. Does NOT require a client (no on-chain operations).
+Erasure-codes blobs and returns `BlobCommitments[]`. No client / no on-chain work — pure client-side encoding, useful for the manual upload flow and progress UIs.
 
 ```tsx
 import { useEncodeBlobs } from "@shelby-protocol/react";
@@ -329,150 +241,113 @@ const { mutateAsync: encodeBlobs } = useEncodeBlobs({
 });
 
 const commitments = await encodeBlobs({
-  blobs: [{ blobData: new Uint8Array([...]) }],
-  onChunk: ({ blobIndex, progress }) => {
-    console.log(`Blob ${blobIndex}: ${(progress * 100).toFixed(1)}%`);
-  },
+  blobs: [{ blobData: new Uint8Array([/* ... */]) }],
+  onChunk: ({ blobIndex, progress }) =>
+    console.log(`Blob ${blobIndex}: ${(progress * 100).toFixed(1)}%`),
 });
 ```
 
-**Mutation Variables:**
-```typescript
-interface UseEncodeBlobsVariables {
-  blobs: { blobData: Uint8Array }[];
-  provider?: ErasureCodingProvider;   // Optional: custom provider
-  onChunk?: (event: {
-    blobIndex: number;
-    chunksetIndex: number;
-    chunkIndex: number;
-    chunkData: Uint8Array;
-    progress: number;                 // 0 to 1
-  }) => void;
-}
-```
+**Variables (`UseEncodeBlobsVariables`):** `{ blobs: { blobData: Uint8Array }[]; provider?: ErasureCodingProvider; onChunk?: (e) => void }`. The `onChunk` event carries `{ blobIndex, chunksetIndex, chunkIndex, chunkData, progress }` (`progress` is 0→1).
 
 ### useRegisterCommitments
 
-Registers blob commitments on-chain. Used in advanced upload flows where you generate commitments separately.
+Registers pre-computed commitments on-chain (the register step of a manual flow). Works with both signer types. Returns `{ hash }`.
 
 ```tsx
 import { useRegisterCommitments } from "@shelby-protocol/react";
 
-const { mutateAsync: registerCommitments } = useRegisterCommitments({
-  client: shelbyClient,
-  onSuccess: ({ hash }) => console.log("Transaction:", hash),
-});
+const { mutateAsync: registerCommitments } = useRegisterCommitments({ client: shelbyClient });
 
 await registerCommitments({
   signer,
-  commitments: [
-    { blobName: "file1.txt", commitment: blobCommitments[0] },
-  ],
-  expirationMicros: Date.now() * 1000 + 86400_000_000,
+  commitments: [{ blobName: "file1.txt", commitment: blobCommitments[0] }],
+  options: { selectedLocation },  // UploadOptions — location resolves here
 });
 ```
 
-**Mutation Variables:**
-```typescript
-interface UseRegisterCommitmentsVariables {
-  signer: Signer;
-  commitments: { blobName: string; commitment: BlobCommitments }[];
-  expirationMicros: number;
-  options?: UploadOptions;
-}
-```
+**Variables (`UseRegisterCommitmentsVariables`):** `{ signer: Signer; commitments: { blobName: string; commitment: BlobCommitments }[]; options?: UploadOptions }`.
 
 ### useCommitBlobs
 
-Uploads blob data to Shelby RPC nodes (the data upload step, after on-chain registration).
+Uploads **already-registered** blobs to the RPC and commits them on-chain — the wallet-adapter path for finishing an upload that was registered separately. For each blob the data is uploaded (returning SP acks) and then bound under its name with `commit_object`.
+
+> **Wallet-adapter only, one tx prompt per blob, and the upload is unauthenticated** (a wallet cannot sign the RPC's raw challenge). Only works against an RPC that does not require upload auth.
 
 ```tsx
 import { useCommitBlobs } from "@shelby-protocol/react";
 
-const { mutateAsync: commitBlobs } = useCommitBlobs({
-  client: shelbyClient,
-  onSuccess: () => console.log("Blobs committed"),
-});
+const { mutateAsync: commitBlobs } = useCommitBlobs({ client: shelbyClient });
 
 await commitBlobs({
-  account: "0x123...",
+  signer,   // WalletAdapterSigner; must be the account the blobs were registered under
   blobs: [
-    { blobName: "file1.txt", blobData: new Uint8Array([...]) },
-    { blobName: "file2.txt", blobData: new Uint8Array([...]) },
+    {
+      uid,                 // bigint, from the register tx's BlobRegisteredEvent
+      blobName: "file1.txt",
+      blobData: new Uint8Array([/* ... */]),
+      commitments,         // the BlobCommitments the blob was registered with
+    },
   ],
-  maxConcurrentUploads: 3, // Optional, default: 3
+  overwrite: false,        // optional, default false
+  maxConcurrentUploads: 3, // optional, default 3
 });
 ```
 
-**Mutation Variables:**
-```typescript
-interface UseCommitBlobsVariables {
-  account: AccountAddressInput;
-  blobs: { blobName: string; blobData: Uint8Array }[];
-  maxConcurrentUploads?: number;  // Default: 3
-}
-```
+**Variables (`UseCommitBlobsVariables`):** `{ signer: WalletAdapterSigner; blobs: { uid: bigint; blobName: string; blobData: Uint8Array; commitments: BlobCommitments }[]; overwrite?: boolean; maxConcurrentUploads?: number }`.
 
 ## Complete Example
 
-A complete file manager component using React hooks:
+A file manager. This example **uploads with an `Account` signer** for simplicity; a wallet-adapter signer works with `useUploadBlobs` too. Listing and deletion use the connected wallet.
 
 ```tsx
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import {
   ShelbyClientProvider,
   useAccountBlobs,
   useUploadBlobs,
-  useDeleteBlobs,
+  useDeleteObjects,
 } from "@shelby-protocol/react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Network } from "@aptos-labs/ts-sdk";
+import { Network, Account } from "@aptos-labs/ts-sdk";
 
 const queryClient = new QueryClient();
+const shelbyClient = new ShelbyClient({ network: Network.SHELBYNET });
 
-function FileManager() {
-  const { account, signAndSubmitTransaction, connected } = useWallet();
+// This example uploads with an Account signer for simplicity; a wallet-adapter
+// signer works with useUploadBlobs too.
+function FileManager({ uploadAccount }: { uploadAccount: Account }) {
+  const { account, connected } = useWallet();
   const [uploading, setUploading] = useState(false);
-
-  const shelbyClient = useMemo(() => new ShelbyClient({
-    network: Network.SHELBYNET,
-  }), []);
 
   const { data: blobs, isLoading, refetch } = useAccountBlobs({
     account: account?.address,
   });
+  const { mutateAsync: uploadBlobs } = useUploadBlobs({ client: shelbyClient });
+  const { mutateAsync: deleteObjects } = useDeleteObjects({ client: shelbyClient });
 
-  const { mutateAsync: uploadBlobs } = useUploadBlobs({
-    client: shelbyClient,
-  });
-
-  const { mutateAsync: deleteBlobs } = useDeleteBlobs({
-    client: shelbyClient,
-  });
-
-  const signer = account ? { account: account.address, signAndSubmitTransaction } : null;
+  const walletSigner = account
+    ? { account: account.address, signAndSubmitTransaction: useWallet().signAndSubmitTransaction }
+    : null;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files?.length || !signer) return;
-
+    if (!files?.length) return;
     setUploading(true);
     try {
-      const blobsToUpload = await Promise.all(
+      const toUpload = await Promise.all(
         Array.from(files).map(async (file) => ({
           blobData: new Uint8Array(await file.arrayBuffer()),
           blobName: `uploads/${file.name}`,
-        }))
+        })),
       );
-
+      const [location] = await shelbyClient.metadata.getLocationNames();
       await uploadBlobs({
-        signer,
-        blobs: blobsToUpload,
-        expirationMicros: Date.now() * 1000 + 30 * 24 * 3600 * 1_000_000, // 30 days
+        signer: uploadAccount,   // Account signer
+        blobs: toUpload,
+        options: { selectedLocation: location },
       });
-
       await refetch();
     } finally {
       setUploading(false);
@@ -480,68 +355,37 @@ function FileManager() {
   };
 
   const handleDelete = async (blobName: string) => {
-    if (!confirm(`Delete ${blobName}?`) || !signer) return;
-    await deleteBlobs({ signer, blobNames: [blobName] });
+    if (!walletSigner || !confirm(`Delete ${blobName}?`)) return;
+    await deleteObjects({ signer: walletSigner, blobNames: [blobName] });
     await refetch();
   };
 
-  if (!connected) {
-    return <div>Please connect your wallet</div>;
-  }
+  if (!connected) return <div>Please connect your wallet</div>;
 
   return (
     <div>
       <h2>My Files</h2>
-
-      <input
-        type="file"
-        multiple
-        onChange={handleFileChange}
-        disabled={uploading}
-      />
+      <input type="file" multiple onChange={handleFileChange} disabled={uploading} />
       {uploading && <span>Uploading...</span>}
-
-      {isLoading ? (
-        <p>Loading files...</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Size</th>
-              <th>Expires</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {blobs?.map((blob) => (
-              <tr key={blob.name}>
-                <td>{blob.blobNameSuffix}</td>
-                <td>{(blob.size / 1024).toFixed(2)} KB</td>
-                <td>{new Date(blob.expirationMicros / 1000).toLocaleDateString()}</td>
-                <td>
-                  <button onClick={() => handleDelete(blob.blobNameSuffix)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {isLoading ? <p>Loading files...</p> : (
+        <ul>
+          {blobs?.map((blob) => (
+            <li key={blob.name}>
+              {blob.blobNameSuffix} — {(blob.size / 1024).toFixed(2)} KB
+              <button onClick={() => handleDelete(blob.blobNameSuffix)}>Delete</button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
 }
 
-export default function App() {
-  const shelbyClient = useMemo(() => new ShelbyClient({
-    network: Network.SHELBYNET,
-  }), []);
-
+export default function App({ uploadAccount }: { uploadAccount: Account }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ShelbyClientProvider client={shelbyClient}>
-        <FileManager />
+        <FileManager uploadAccount={uploadAccount} />
       </ShelbyClientProvider>
     </QueryClientProvider>
   );
@@ -550,71 +394,52 @@ export default function App() {
 
 ## Troubleshooting
 
-### Type Errors with signAndSubmitTransaction
+### Wallet uploads and the lower-level hooks
 
-**Problem:** TypeScript error when passing `signAndSubmitTransaction` to mutation variables.
+**How it works.** Uploading bytes goes through the v2 **chunkset** endpoint (`putBlobChunksets`). The RPC can authenticate the writer via a challenge signed with `account.sign(...)` — a ts-sdk `Account` can do that; a browser **wallet adapter** (which only exposes `signAndSubmitTransaction`) cannot, so a wallet's byte-upload goes out **address-only / unauthenticated** (accepted only by an RPC that doesn't require upload auth — ShelbyNet does). `useUploadBlobs` handles this for you: for a wallet signer it registers, uploads chunksets by address, then submits one `commit_object` per blob; for an `Account` signer it uses `batchUpload`.
 
-**Solution:** The signer is passed in the mutation call (not the hook), as a `Signer` type:
+Note this is *upload-auth* specific: a wallet can still **register** and **commit** on-chain (normal transactions) — it just can't authenticate the raw byte upload, which is why that step goes out address-only. (A full ts-sdk `Account` — which holds a key — *can* authenticate the upload via the RPC challenge; a browser wallet adapter cannot.)
 
-```tsx
-// Correct: signer goes in the mutation variables
-const { mutateAsync: uploadBlobs } = useUploadBlobs({ client: shelbyClient });
-await uploadBlobs({ signer: { account: address, signAndSubmitTransaction }, blobs, expirationMicros });
+**Two ways to upload:**
 
-// Wrong: don't pass signer to the hook
-const { mutateAsync: uploadBlobs } = useUploadBlobs({ signAndSubmitTransaction }); // ERROR
-```
+1. **`useUploadBlobs` (recommended).** One call does encode → register → upload → commit, for `Account` or wallet-adapter signers.
 
-### Blobs Not Appearing After Upload
+2. **Lower-level hooks (custom flows).** `useEncodeBlobs` → `useRegisterCommitments` → `useCommitBlobs` run the same steps yourself — useful for progress UIs or custom batching. The wallet byte-upload via `useCommitBlobs` is unauthenticated (address-only), which **ShelbyNet accepts**. This is also how the Shelby Explorer uploads.
 
-**Problem:** After `uploadBlobs` succeeds, `useAccountBlobs` doesn't show the new blob.
+   ```tsx
+   import { ShelbyBlobClient } from "@shelby-protocol/sdk/browser";
 
-**Solution:** Call `refetch()` after upload, or configure React Query with a shorter `staleTime`:
+   // 1) Encode locally (no chain, no signer)
+   const [commitment] = await encodeBlobs.mutateAsync({ blobs: [{ blobData }] });
 
-```tsx
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5000, // 5 seconds
-    },
-  },
-});
-```
+   // 2) Register on-chain with the connected wallet
+   const { hash } = await registerCommitments.mutateAsync({
+     signer: walletSigner,
+     commitments: [{ blobName, commitment }],
+     options: { selectedLocation },
+   });
 
-### Missing QueryClientProvider Error
+   // 3) Recover the on-chain UID from the register tx's BlobRegisteredEvent
+   const tx = await shelbyClient.aptos.waitForTransaction({ transactionHash: hash });
+   const [{ uid }] = ShelbyBlobClient.registeredBlobUids(tx.events, shelbyClient.coordination.deployer);
 
-**Problem:** "No QueryClient set, use QueryClientProvider to set one"
+   // 4) Upload bytes + commit (UNAUTHENTICATED upload — needs a permissive RPC)
+   await commitBlobs.mutateAsync({
+     signer: walletSigner,
+     blobs: [{ uid, blobName, blobData, commitments: commitment }],
+   });
+   ```
 
-**Solution:** Ensure your app is wrapped with `QueryClientProvider`:
+`useUploadBlobs` is the one-call path for both signer types; the lower-level hooks stay available for custom upload flows.
 
-```tsx
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+### "No write location could be resolved…" on upload
 
-const queryClient = new QueryClient();
+A fresh account has no default location. Pass `options.selectedLocation` (from `shelbyClient.metadata.getLocationNames()`), or configure a `locationHint` on the `ShelbyClient`.
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ShelbyClientProvider client={shelbyClient}>
-        {/* Your app */}
-      </ShelbyClientProvider>
-    </QueryClientProvider>
-  );
-}
-```
+### Blobs not appearing after upload
 
-### Missing ShelbyClientProvider Error
+Call `refetch()` after upload, or set a short `staleTime` on the query client (`new QueryClient({ defaultOptions: { queries: { staleTime: 5000 } } })`).
 
-**Problem:** "`useShelbyClient` requires a client or `ShelbyClientProvider`"
+### "No QueryClient set" / "requires a client or ShelbyClientProvider"
 
-**Solution:** Either wrap your app with `ShelbyClientProvider` or pass `client` directly to each hook:
-
-```tsx
-// Option 1: Use provider (recommended)
-<ShelbyClientProvider client={shelbyClient}>
-  <YourApp />
-</ShelbyClientProvider>
-
-// Option 2: Pass client to each hook
-const { data } = useAccountBlobs({ client: shelbyClient, account: "0x..." });
-```
+Ensure the tree is wrapped in `QueryClientProvider` and `ShelbyClientProvider` — or pass `client` directly to each hook.

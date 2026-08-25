@@ -1,9 +1,10 @@
 # Advanced Topics
 
-Advanced Shelby Protocol features: micropayments, erasure coding, streaming, and low-level operations.
+Advanced Shelby Protocol features: micropayments, erasure coding, streaming, and low-level operations. For `@shelby-protocol/sdk@^0.8.0`.
 
 ## Table of Contents
 
+- [Extra Entry Points](#extra-entry-points)
 - [Micropayment Channels](#micropayment-channels)
 - [Downloads with Micropayments](#downloads-with-micropayments)
 - [Erasure Coding](#erasure-coding)
@@ -11,6 +12,26 @@ Advanced Shelby Protocol features: micropayments, erasure coding, streaming, and
 - [Streaming](#streaming)
 - [Low-Level Operations](#low-level-operations)
 - [Blob Naming and Keys](#blob-naming-and-keys)
+
+## Extra Entry Points
+
+Beyond `@shelby-protocol/sdk/node` and `/browser`, two specialized entry points ship:
+
+```typescript
+// Parallel commitment generation across Node worker threads (CPU-bound encoding).
+import {
+  generateCommitmentsParallel,
+  createDefaultCommitmentWorkerPool,
+  CommitmentWorkerPool,
+} from "@shelby-protocol/sdk/node/parallel";
+
+const commitments = await generateCommitmentsParallel(provider, dataOrStream, { concurrency: 8 });
+
+// Low-level storage-provider write client (chunk proofs + direct SP writes).
+import { SpWriteClient, buildChunkProof, generateChunksetInclusionProof } from "@shelby-protocol/sdk/sp";
+```
+
+Most apps never need these — `client.upload()` (Node) already parallelizes chunkset uploads. Reach for `/node/parallel` when commitment generation dominates, and `/sp` only for protocol-level tooling.
 
 ## Micropayment Channels
 
@@ -75,31 +96,34 @@ const channels = await mpClient.getChannelInfo({
 });
 ```
 
-**ChannelInfo type:**
+**ChannelInfo type** (numeric fields are `bigint`):
 
 ```typescript
 interface ChannelInfo {
   sender: AccountAddress;
   receiver?: AccountAddress;
   fungibleAssetAddress: AccountAddress;
-  balance: number;
-  creationMicros: number;
-  expirationMicros: number;
-  nextWithdrawnSequenceNumber: number;
-  paymentChannelId: number;
-  receiverWithdrawnAmount: number;
+  balance: bigint;
+  creationMicros: bigint;
+  expirationMicros: bigint;
+  nextWithdrawnSequenceNumber: bigint;
+  paymentChannelId: bigint;
+  receiverWithdrawnAmount: bigint;
+  publicKey: Uint8Array;
 }
 ```
 
 ### Create a Micropayment
 
+`createMicropayment()` signs the approval locally and returns a `SenderBuiltMicropayment` **synchronously** (no `await`):
+
 ```typescript
-const micropayment = await mpClient.createMicropayment({
+const micropayment = mpClient.createMicropayment({
   sender: senderAccount,
   receiver: receiverAddress,
-  amount: 100, // Payment amount
+  amount: 100, // cumulative amount authorized (not incremental)
   paymentChannelId: channel.paymentChannelId,
-  sequenceNumber: localSequenceNumber++, // Must be increasing
+  sequenceNumber: localSequenceNumber++, // must be >= channel's next_withdrawn_sequence_number
   fungibleAssetAddress: shelbyUsdAddress,
 });
 ```
@@ -187,7 +211,7 @@ try {
     localSequenceNumber = extractSequenceNumber(serverMicropayment) + 1;
 
     // Retry with corrected sequence number
-    const newMicropayment = await mpClient.createMicropayment({
+    const newMicropayment = mpClient.createMicropayment({
       sender: senderAccount,
       receiver: receiverAddress,
       amount: 100,
@@ -227,13 +251,23 @@ const restoredFromHex = SenderBuiltMicropayment.deserialize("0x...");
 
 Shelby uses Clay codes for erasure coding, providing fault tolerance and efficient storage.
 
-### ClayErasureCodingProvider
+### Creating a provider
+
+Use the no-arg factory (default Clay config, async WASM init):
 
 ```typescript
-import { ClayErasureCodingProvider } from "@shelby-protocol/sdk";
+import { createDefaultErasureCodingProvider } from "@shelby-protocol/sdk";
 
-// Create a provider (async initialization for WASM)
-const provider = await ClayErasureCodingProvider.create();
+const provider = await createDefaultErasureCodingProvider();
+```
+
+For a custom scheme, build a `ClayConfig` and pass it to the class factory:
+
+```typescript
+import { ClayErasureCodingProvider, defaultErasureCodingConfig } from "@shelby-protocol/sdk";
+
+const provider = await ClayErasureCodingProvider.create(defaultErasureCodingConfig());
+// or erasureCodingConfig16Total10Data13Helper() / erasureCodingConfig4Total2Data3Helper()
 ```
 
 ### Shared Provider Pattern
@@ -241,11 +275,11 @@ const provider = await ClayErasureCodingProvider.create();
 For efficiency, share a single provider across multiple clients:
 
 ```typescript
-const provider = await ClayErasureCodingProvider.create();
+const provider = await createDefaultErasureCodingProvider();
 
-// Share across multiple clients
-const mainnetClient = new ShelbyClient(mainnetConfig, provider);
-const testnetClient = new ShelbyClient(testnetConfig, provider);
+// Share across multiple clients (e.g. an API-keyed client and an anonymous one)
+const client = new ShelbyClient({ network: Network.SHELBYNET, apiKey: "AG-***" }, provider);
+const anonClient = new ShelbyClient({ network: Network.SHELBYNET }, provider);
 ```
 
 This avoids re-initializing the WASM module for each client.
@@ -255,9 +289,9 @@ This avoids re-initializing the WASM module for each client.
 For low-level blob registration:
 
 ```typescript
-import { generateCommitments } from "@shelby-protocol/sdk";
+import { generateCommitments, createDefaultErasureCodingProvider } from "@shelby-protocol/sdk";
 
-const provider = await ClayErasureCodingProvider.create();
+const provider = await createDefaultErasureCodingProvider();
 const commitments = await generateCommitments(provider, blobData);
 
 // commitments.blob_merkle_root - Use for registration
@@ -390,85 +424,111 @@ const rest = await client.download({
 
 ### Upload Progress
 
-Track upload progress with the callback:
+`putBlobChunksets()` reports progress per chunkset. It needs the on-chain `uid` and the pre-computed `commitments` (see [Low-Level Operations](#low-level-operations)):
 
 ```typescript
-await rpcClient.putBlob({
-  account: accountAddress,
-  blobName: "large-file.bin",
-  blobData: largeData,
-  onProgress: (progress) => {
-    const percent = (progress.uploadedBytes / progress.totalBytes) * 100;
-    console.log(`Upload: ${percent.toFixed(1)}% (${progress.partIdx + 1}/${progress.totalParts})`);
+const result = await rpcClient.putBlobChunksets({
+  account: signer,               // or accountAddress for an unauthenticated write
+  uid,                           // bigint, from the register tx's BlobRegisteredEvent
+  blobData: largeData,           // Uint8Array or ReadableStream
+  commitments,                   // from generateCommitments()
+  totalBytes: largeData.length,  // required when blobData is a stream
+  chunksetConcurrency: 8,        // default 4
+  onProgress: (p) => {
+    const percent = (p.uploadedBytes / p.totalBytes) * 100;
+    console.log(`Upload: ${percent.toFixed(1)}% (chunkset ${p.chunksetIdx + 1}/${p.totalChunksets})`);
   },
 });
+// result.spAcks — pass these to coordination.commitObject()
 ```
 
-**PutBlobProgress type:**
+**PutBlobChunksetsProgress type:**
 
 ```typescript
-interface PutBlobProgress {
-  partIdx: number;        // Current part index (0-based)
-  totalParts: number;     // Total number of parts
-  partBytes: number;      // Size of current part
-  uploadedBytes: number;  // Total bytes uploaded so far
-  totalBytes: number;     // Total blob size
-}
+type PutBlobChunksetsProgress = {
+  phase: "uploading";
+  chunksetIdx: number;     // Current chunkset index (0-based)
+  totalChunksets: number;
+  chunksetBytes: number;   // Size of current chunkset
+  uploadedBytes: number;   // Total bytes uploaded so far
+  totalBytes: number;      // Total blob size
+  acksReceived?: number;
+  spAcks?: StorageProviderAck[];
+};
 ```
 
 ---
 
 ## Low-Level Operations
 
-### Manual Commitment Generation and Registration
+### Manual register → upload → commit
 
-For advanced control over the upload process:
+`client.upload()` does this for you. Do it by hand for streaming, custom batching, or to attach your own transaction options. The blob is addressed by its on-chain **UID** until the final commit binds it under its name.
 
 ```typescript
-import { generateCommitments, ClayErasureCodingProvider } from "@shelby-protocol/sdk";
+import { generateCommitments, createDefaultErasureCodingProvider, ShelbyBlobClient } from "@shelby-protocol/sdk";
 
 // 1. Generate commitments
-const provider = await ClayErasureCodingProvider.create();
+const provider = await createDefaultErasureCodingProvider();
 const commitments = await generateCommitments(provider, blobData);
 
-// 2. Register on blockchain
+// 2. Register on chain (creates a PENDING blob). Location resolves via options.
 const { transaction } = await client.coordination.registerBlob({
   account: signer,
   blobName: "my-blob.txt",
   blobMerkleRoot: commitments.blob_merkle_root,
   size: blobData.length,
-  expirationMicros: Date.now() * 1000 + 86400_000_000,
+  options: { selectedLocation },
 });
 
-await client.coordination.aptos.waitForTransaction({
-  transactionHash: transaction.hash,
+const registered = await client.aptos.waitForTransaction({ transactionHash: transaction.hash });
+
+// 3. Read the UID assigned at registration from the tx's BlobRegisteredEvent.
+//    waitForTransaction returns a union; narrow to the shape that carries events.
+const events = "events" in registered ? registered.events : [];
+const [{ uid }] = ShelbyBlobClient.registeredBlobUids(events, client.coordination.deployer);
+
+// 4. Upload the bytes; the RPC returns storage-provider acks
+const { spAcks } = await client.rpc.putBlobChunksets({
+  account: signer,
+  uid,
+  blobData,
+  commitments,
 });
 
-// 3. Upload to RPC
-await client.rpc.putBlob({
-  account: signer.accountAddress,
+// 5. Commit — binds the written blob under its name (acks applied atomically)
+const { transaction: commitTx } = await client.coordination.commitObject({
+  account: signer,
+  uid,
   blobName: "my-blob.txt",
-  blobData: blobData,
+  overwrite: false,
+  storageProviderAcks: spAcks,
 });
+await client.aptos.waitForTransaction({ transactionHash: commitTx.hash });
 ```
+
+> A commit can be *rejected* while the transaction still succeeds. Check with
+> `ShelbyBlobClient.findObjectCommitRejection(commitEvents, deployer, uid)` (returns a
+> `CommitRejectionReason` or `undefined`), or catch `ObjectCommitRejectedError`.
 
 ### Create Transaction Payloads
 
 For custom transaction handling or batching:
 
 ```typescript
-// Create register blob payload
+// Create register blob payload (encoding is required; selectedLocation optional)
 const registerPayload = ShelbyBlobClient.createRegisterBlobPayload({
   account: accountAddress,
   blobName: "blob.txt",
   blobSize: 1000,
   blobMerkleRoot: merkleRoot,
-  expirationMicros: expiration,
   numChunksets: 1,
+  encoding: 0,
+  selectedLocation,
 });
 
-// Create delete blob payload
-const deletePayload = ShelbyBlobClient.createDeleteBlobPayload({
+// Create delete object payload
+const deletePayload = ShelbyBlobClient.createDeleteObjectPayload({
   blobName: "blob.txt",
 });
 
@@ -481,25 +541,27 @@ const channelPayload = ShelbyMicropaymentChannelClient.makeCreateMicropaymentCha
 });
 ```
 
-### Direct Indexer Queries
+### Indexer-backed queries
 
-Access the GraphQL indexer directly:
+Prefer the typed `coordination` methods, which wrap the GraphQL indexer and return `FullObjectMetadata[]`:
 
 ```typescript
-const { blobs } = await client.coordination.indexer.getBlobs({
-  where: {
-    owner: { _eq: ownerAddress.toString() },
-    expires_at: { _gte: Date.now() * 1000 },
-  },
-  limit: 100,
-  offset: 0,
+const blobs = await client.coordination.getBlobs({
+  where: { owner: { _eq: ownerAddress.toString() } },
+  pagination: { limit: 100, offset: 0 },
   orderBy: { created_at: "desc" },
 });
 
-const { blobs_aggregate } = await client.coordination.indexer.getBlobsCount({
+const count = await client.coordination.getBlobsCount({
+  where: { owner: { _eq: ownerAddress.toString() } },
+});
+
+const totalBytes = await client.coordination.getTotalBlobsSize({
   where: { owner: { _eq: ownerAddress.toString() } },
 });
 ```
+
+The raw generated GraphQL SDK is still reachable at `client.coordination.indexer` if you need queries these methods don't cover.
 
 ### Blob Activities
 
@@ -514,30 +576,17 @@ const activities = await client.coordination.getBlobActivities({
   pagination: { limit: 50 },
 });
 
-// Activity types: "register_blob", "delete_blob", "extend_blob_expiration", "write_blob"
+// Activity types: "register_blob" | "delete_blob" | "write_blob"
+//               | "commit_object" | "delete_object" | "reject_object_commit" | "unknown"
 for (const activity of activities) {
-  console.log(`${activity.type} at ${new Date(activity.timestamp)}`);
+  console.log(`${activity.type} at ${activity.timestamp}`); // timestamp is a string
   console.log(`  Transaction: ${activity.transactionHash}`);
 }
 ```
 
-### Chunkset Acknowledgements
+### Storage-provider acknowledgements
 
-For storage providers to acknowledge blob storage:
-
-```typescript
-const { transaction } = await client.coordination.addChunksetAcknowledgements({
-  account: storageProviderAccount,
-  blobOwner: ownerAddress,
-  blobName: "blob.txt",
-  creationMicros: metadata.creationMicros,
-  chunksetIdx: 0,
-  storageProviderAcks: [
-    { slot: 0, signature: signature0 },
-    { slot: 1, signature: signature1 },
-  ],
-});
-```
+Storage-provider acks (`StorageProviderAck[]`) are produced by `rpc.putBlobChunksets()` and applied to the blob when you call `coordination.commitObject()` — see [Manual register → upload → commit](#manual-register--upload--commit). There is no separate "add acknowledgements" call; the commit binds the written blob and applies its acks atomically.
 
 ---
 
