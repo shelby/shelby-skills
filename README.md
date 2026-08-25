@@ -2,17 +2,17 @@
 
 Agent skills for building with the Shelby ecosystem. Each skill provides structured documentation that AI coding agents (Claude Code, Cursor, Copilot, etc.) can use to assist with Shelby development tasks.
 
-Shelby uses Derived Account Abstraction (DAA) to let wallets from other chains (Ethereum, Solana) derive and control storage accounts on Aptos.
-
 ## Skills
 
 | Skill | Description | Packages |
 |-------|-------------|----------|
 | [shelby-sdk](skills/shelby-sdk/SKILL.md) | Core SDK and React hooks for decentralized storage | `@shelby-protocol/sdk`, `@shelby-protocol/react` |
-| [shelby-ethereum-kit](skills/shelby-ethereum-kit/SKILL.md) | Ethereum wallet integration via DAA | `@shelby-protocol/ethereum-kit` |
-| [shelby-solana-kit](skills/shelby-solana-kit/SKILL.md) | Solana wallet integration via DAA | `@shelby-protocol/solana-kit` |
-| [shelby-cli](skills/shelby-cli/SKILL.md) | CLI tool for Shelby decentralized storage | `shelby` CLI |
+| [shelby-cli](skills/shelby-cli/SKILL.md) | CLI tool for Shelby decentralized storage | `@shelby-protocol/cli` |
 | [shelby-media](skills/shelby-media/SKILL.md) | Video streaming and media applications | `@shelby-protocol/player`, `@shelby-protocol/media-prepare` |
+
+> **Deprecated:** the `shelby-ethereum-kit` and `shelby-solana-kit` skills (cross-chain DAA
+> wallet integration) have been removed. For non-Aptos integrations, use the Shelby **S3
+> gateway** (S3-compatible, wallet-agnostic).
 
 ## Structure
 
@@ -28,14 +28,6 @@ shelby-skills/
         react.md
         advanced.md
         sdk-feedback.md
-    shelby-ethereum-kit/
-      SKILL.md            # Entry point — Ethereum DAA integration
-      references/
-        ethereum-kit.md
-    shelby-solana-kit/
-      SKILL.md            # Entry point — Solana DAA integration
-      references/
-        solana-kit.md
     shelby-cli/
       SKILL.md
       references/
@@ -73,8 +65,6 @@ ln -s /path/to/shelby-skills ~/.claude/skills/shelby-skills
 Once installed, invoke skills with the `shelby-skills:<skill>` syntax:
 
 - `/shelby-skills:shelby-sdk` — Core storage operations & React hooks
-- `/shelby-skills:shelby-ethereum-kit` — Ethereum wallet integration (DAA + SIWE)
-- `/shelby-skills:shelby-solana-kit` — Solana wallet integration (DAA + SIWS)
 - `/shelby-skills:shelby-cli` — CLI commands for uploads, downloads, and account management
 - `/shelby-skills:shelby-media` — Video streaming with transcoding, adaptive streaming, and DRM
 
