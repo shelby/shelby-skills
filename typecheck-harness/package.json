@@ -1,0 +1,32 @@
+{
+  "name": "shelby-skills-typecheck-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Type-checks the code examples documented in the Shelby skills against the published packages. Run `npm run typecheck`.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "postinstall": "echo 'Run: npm run typecheck'"
+  },
+  "dependencies": {
+    "@shelby-protocol/sdk": "0.8.0",
+    "@shelby-protocol/react": "4.2.0",
+    "@shelby-protocol/player": "0.2.0",
+    "@shelby-protocol/media-prepare": "0.0.1",
+    "@aptos-labs/ts-sdk": "5.2.1",
+    "@tanstack/react-query": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@ffmpeg/ffmpeg": "^0.12.9",
+    "@ffmpeg/util": "^0.12.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "overrides": {
+    "@aptos-labs/ts-sdk": "5.2.1"
+  }
+}
