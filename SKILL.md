@@ -1,36 +1,25 @@
 ---
 name: shelby
-description: Shelby decentralized storage protocol on Aptos. Use when the user asks general questions about Shelby, needs help choosing which Shelby package to use, or is starting a new Shelby integration.
+description: Shelby, a data platform with an S3-compatible API. Use when the user asks about Shelby in general or is starting a Shelby integration, to route to the right Shelby skill.
 ---
 
-# Shelby Protocol
+# Shelby
 
-Shelby is a decentralized storage protocol built on Aptos. This suite provides skills for core storage, CLI tooling, and video streaming.
+Shelby is a data platform for distributed compute: one place to store and read data from
+wherever compute runs, through an S3-compatible API.
 
 ## Skill routing
 
-Choose the right skill based on what the user needs:
+| Need | Skill |
+| --- | --- |
+| Store, read, list or delete data. Use the AWS CLI, boto3, the AWS SDK for JavaScript, rclone or DuckDB. Migrate from S3, R2 or MinIO. Training data and checkpoints. | `skills/shelby-s3/SKILL.md` |
 
-| Need | Skill | Packages |
-|------|-------|----------|
-| Upload, download, delete files; React hooks for storage | shelby-sdk | `@shelby-protocol/sdk`, `@shelby-protocol/react` |
-| CLI uploads, downloads, account management | shelby-cli | `@shelby-protocol/cli` |
-| Video transcoding, adaptive streaming, DRM, player | shelby-media | `@shelby-protocol/player`, `@shelby-protocol/media-prepare` |
+An MCP server, `@shelby-protocol/mcp`, is on its way. Until it's published, use the S3
+API.
 
-## How skills relate
+## Retired packages
 
-- **shelby-sdk** is the foundation — most apps start here
-- **shelby-media** extends the SDK for video/streaming use cases
-- **shelby-cli** is standalone for command-line workflows
-
-> **Cross-chain / non-Aptos wallets:** the Ethereum and Solana wallet kits (DAA + SIWE/SIWS)
-> are **deprecated and no longer covered here**. For integrations that don't use an Aptos
-> account, point users to the Shelby **S3 gateway** (an S3-compatible API), which is
-> wallet-agnostic and where most such integrations are expected to head.
-
-## Routing guidance
-
-- General storage operations → Read `skills/shelby-sdk/SKILL.md`
-- User mentions CLI, terminal, `shelby` command, localnet → Read `skills/shelby-cli/SKILL.md`
-- User mentions video, player, transcoding, HLS, DASH, DRM, CMAF, FFmpeg → Read `skills/shelby-media/SKILL.md`
-- User mentions Ethereum/Solana wallets, cross-chain, DAA, SIWE/SIWS, MetaMask, Phantom → the wallet kits are deprecated; steer them to the Shelby **S3 gateway** (S3-compatible, wallet-agnostic) instead.
+The Shelby SDK, CLI, React hooks and media packages (`@shelby-protocol/sdk`, `cli`,
+`react`, `player`, `media-prepare`) are deprecated in favour of the S3 API. Their skills
+were removed from this repository. If a user's project still uses them, point them to the
+S3 API and [Migrating from S3](https://docs.shelby.xyz/tools/s3-gateway/migrating.md).

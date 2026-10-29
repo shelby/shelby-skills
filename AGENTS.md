@@ -1,23 +1,45 @@
-# Shelby Skills
+# AGENTS.md
 
-Shelby is a decentralized storage protocol built on Aptos. These skills give you the context needed to help developers build with Shelby's npm packages — from core storage operations to CLI tooling and video streaming.
+Agent skills for Shelby's S3-compatible API. One skill today: `skills/shelby-s3`. The root
+`SKILL.md` routes to it.
 
-## Available skills
+## Layout
 
-| Skill | When to use | Packages |
-|---|---|---|
-| shelby-sdk | Core storage operations & React hooks | `@shelby-protocol/sdk`, `@shelby-protocol/react` |
-| shelby-cli | CLI for uploads, downloads, account management | `@shelby-protocol/cli` |
-| shelby-media | Video transcoding, adaptive streaming, DRM | `@shelby-protocol/player`, `@shelby-protocol/media-prepare` |
+```
+SKILL.md                      router: which Shelby skill to load
+skills/shelby-s3/SKILL.md     the skill: connection settings, rules, verification
+skills/shelby-s3/references/  one file per client and recipe (synced, see below)
+scripts/sync-quickstart.py    copies the synced parts from shelby-quickstart
+quickstart.lock               the shelby-quickstart commit they're copied from
+```
 
-## How skills relate
+## The synced parts
 
-**shelby-sdk** is the foundation — most apps start here for uploading, downloading, and managing files on Shelby. **shelby-media** extends the SDK for video and streaming use cases (transcoding, adaptive bitrate, DRM). **shelby-cli** is standalone and covers command-line workflows for uploads, downloads, and account management.
+`skills/shelby-s3/references/*.md`, and the block in `skills/shelby-s3/SKILL.md` between
+the `BEGIN SYNC` and `END SYNC` markers, are copied from
+[shelby-quickstart](https://github.com/shelby/shelby-quickstart). Its examples run against
+the live endpoint in CI, so the facts are checked there. Never edit the synced parts here.
 
-> The former **shelby-ethereum-kit** and **shelby-solana-kit** skills (cross-chain DAA wallet
-> integration via SIWE/SIWS) have been **removed** — those kits are deprecated. For non-Aptos
-> integrations, direct developers to the Shelby **S3 gateway** (an S3-compatible, wallet-agnostic API).
+To change them:
 
-## Navigating skill files
+1. Change the client or recipe README, or `AGENTS.md`, in shelby-quickstart, and merge it.
+2. Here, move the pin and sync: `python3 scripts/sync-quickstart.py --ref <commit>`. Set
+   `QUICKSTART_DIR` to a local clone to read from it instead of GitHub.
+3. Commit the lock file and the synced files together.
 
-Each skill has a `SKILL.md` entry point and a `references/` directory with deeper API docs and guides. Read `SKILL.md` first for the overview and quick reference, then drill into `references/` as needed for detailed API surfaces, advanced usage, and examples.
+CI runs `python3 scripts/sync-quickstart.py --check`, and fails if a synced file differs
+from the pinned commit.
+
+## Writing skill text
+
+- The frontmatter `description` decides when an agent loads a skill. Name the user
+  intents and terms that should trigger it.
+- Keep `SKILL.md` short. It's loaded whole; references are read on demand.
+- State only what the docs or the quickstart's live runs establish. Link the docs' `.md`
+  URLs rather than copying them.
+- Match the docs' voice: sober and terse.
+
+## Releasing
+
+Trigger the Release workflow in GitHub Actions, or run `scripts/release.sh
+[major|minor|patch]`. Either one tags a version and creates a GitHub Release.

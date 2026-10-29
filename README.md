@@ -1,94 +1,43 @@
 # shelby-skills
 
-Agent skills for building with the Shelby ecosystem. Each skill provides structured documentation that AI coding agents (Claude Code, Cursor, Copilot, etc.) can use to assist with Shelby development tasks.
+Agent skills for [Shelby](https://shelby.xyz)'s S3-compatible API. They give AI coding
+agents (Claude Code, Cursor, Codex and others) what they need to write Shelby code that
+works the first time. That includes the places where habits from Amazon S3 break.
 
 ## Skills
 
-| Skill | Description | Packages |
-|-------|-------------|----------|
-| [shelby-sdk](skills/shelby-sdk/SKILL.md) | Core SDK and React hooks for decentralized storage | `@shelby-protocol/sdk`, `@shelby-protocol/react` |
-| [shelby-cli](skills/shelby-cli/SKILL.md) | CLI tool for Shelby decentralized storage | `@shelby-protocol/cli` |
-| [shelby-media](skills/shelby-media/SKILL.md) | Video streaming and media applications | `@shelby-protocol/player`, `@shelby-protocol/media-prepare` |
+| Skill | Use it for |
+| --- | --- |
+| [shelby-s3](skills/shelby-s3/SKILL.md) | Storing and reading data with the AWS CLI, boto3, the AWS SDK for JavaScript, rclone or DuckDB. Migrating from S3, R2 or MinIO. Training data and checkpoints. |
 
-> **Deprecated:** the `shelby-ethereum-kit` and `shelby-solana-kit` skills (cross-chain DAA
-> wallet integration) have been removed. For non-Aptos integrations, use the Shelby **S3
-> gateway** (S3-compatible, wallet-agnostic).
+> **Retired:** the `shelby-sdk`, `shelby-cli` and `shelby-media` skills, along with the
+> packages they covered, which are deprecated in favour of the S3 API. They're in the
+> history at [`1a32c67`](https://github.com/shelby/shelby-skills/tree/1a32c67435a80a669fb259618b29ba4de44955ca).
 
-## Structure
+## Install
 
-```
-shelby-skills/
-  .claude-plugin/
-    plugin.json           # Plugin manifest
-  skills/
-    shelby-sdk/
-      SKILL.md            # Entry point — core SDK and React hooks
-      references/
-        api-reference.md
-        react.md
-        advanced.md
-        sdk-feedback.md
-    shelby-cli/
-      SKILL.md
-      references/
-        commands.md
-    shelby-media/
-      SKILL.md
-      references/
-        player.md
-        media-prepare.md
-  scripts/
-    release.sh            # Local release helper
-  .github/
-    workflows/
-      release.yml         # GitHub Actions release workflow
-```
-
-Each skill follows the same pattern: a `SKILL.md` at the directory root as the entry point, with a `references/` directory for detailed documentation.
-
-## Installation
-
-Add the plugin to Claude Code:
-
-```bash
-claude plugin add --path /path/to/shelby-skills
-```
-
-Or manually: symlink the repository into your Claude Code skills directory:
+Symlink the repository into your Claude Code skills directory:
 
 ```bash
 ln -s /path/to/shelby-skills ~/.claude/skills/shelby-skills
 ```
 
-## Usage
+Then invoke the skill as `/shelby-skills:shelby-s3`, or let the agent load it when you
+mention Shelby. For other agents, point them at `skills/shelby-s3/SKILL.md`.
 
-Once installed, invoke skills with the `shelby-skills:<skill>` syntax:
+## Where the facts come from
 
-- `/shelby-skills:shelby-sdk` — Core storage operations & React hooks
-- `/shelby-skills:shelby-cli` — CLI commands for uploads, downloads, and account management
-- `/shelby-skills:shelby-media` — Video streaming with transcoding, adaptive streaming, and DRM
+The skill's references and its list of S3 habits that break on Shelby are synced from
+[shelby-quickstart](https://github.com/shelby/shelby-quickstart). Its examples run against
+the hosted endpoint every night. `quickstart.lock` pins the commit they're copied from, and
+CI fails if they drift. See [AGENTS.md](AGENTS.md) to update them.
 
 ## Releasing
 
-Versions follow semver and are tracked via git tags (`v1.0.0`, `v1.1.0`, etc.).
-
-**Local** — Run the release script:
-
-```bash
-scripts/release.sh [major|minor|patch]
-```
-
-**CI** — Trigger the [Release workflow](.github/workflows/release.yml) from GitHub Actions with a version bump type (`patch`, `minor`, or `major`). This creates a git tag and a GitHub Release with auto-generated notes.
-
-## Contributing
-
-To add a new skill:
-
-1. Create a directory named `skills/shelby-<name>/`
-2. Add a `SKILL.md` with frontmatter (`name`, `description`) and structured content
-3. Add a `references/` directory for detailed API docs and guides
-4. Update the skills table in this README
+Versions follow semver and are tracked as git tags. Trigger the
+[Release workflow](.github/workflows/release.yml) with a bump type, or run
+`scripts/release.sh [major|minor|patch]` locally.
 
 ## License
 
-See repository for license details.
+See the repository for license details.
