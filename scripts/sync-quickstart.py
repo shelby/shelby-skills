@@ -38,7 +38,9 @@ SOURCES = {
     "recipes/migrate-from-s3/README.md": "migrate-from-s3.md",
     "recipes/ml-training/README.md": "ml-training.md",
 }
-HABITS = "## Shelby is not quite S3"
+# The section's heading in the quickstart's AGENTS.md: current name first, then the
+# name it had before 3847fd0, so commits on either side of the rename still sync.
+HABITS = ("## Where Shelby differs from Amazon S3", "## Shelby is not quite S3")
 BEGIN = "<!-- BEGIN SYNC: shelby-quickstart AGENTS.md. Run scripts/sync-quickstart.py, don't edit. -->"
 END = "<!-- END SYNC -->"
 RELATIVE_LINK = re.compile(r"\]\((?!https?://|#|mailto:)([^)\s]+)\)")
@@ -75,7 +77,10 @@ def absolutize(text: str, ref: str, path: str) -> str:
 def habits_list(agents_md: str) -> str:
     """The body of the habits section, without its heading."""
     lines = agents_md.splitlines()
-    start = lines.index(HABITS) + 1
+    heading = next((h for h in HABITS if h in lines), None)
+    if heading is None:
+        raise SystemExit(f"AGENTS.md has none of the headings {HABITS}")
+    start = lines.index(heading) + 1
     end = next(
         (i for i in range(start, len(lines)) if lines[i].startswith("## ")), len(lines)
     )
