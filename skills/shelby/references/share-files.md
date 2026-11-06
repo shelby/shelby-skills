@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@07a6ef51967c, recipes/share-files/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@c2a99052d827, recipes/share-files/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # Share files
 
@@ -15,7 +15,7 @@ make share-files    # installs dependencies on the first run
 
 Or, in this folder: `npm ci`, then `node --env-file=../../.env share.ts`.
 
-One run plays three parts: the server in [`server.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files/server.ts), the app's user asking
+One run plays three parts: the server in [`server.ts`](https://github.com/shelby/shelby-quickstart/blob/c2a99052d827cdc68404ca549a419286957cdc3c/recipes/share-files/server.ts), the app's user asking
 it for links, and the person they share with, who opens the links with plain `fetch` and
 no credentials. The server listens on `127.0.0.1` only and stops at the end. Links and
 cookies are never printed. The run writes only under `quickstart/share-files/<run-id>/`
@@ -43,8 +43,8 @@ in your bucket, deletes what it wrote, and exits 0 only when every step passes.
 npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner @aws-sdk/util-format-url
 ```
 
-Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files/shelby-s3.ts) for the client, and take what you need from
-[`server.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files/server.ts):
+Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/c2a99052d827cdc68404ca549a419286957cdc3c/recipes/share-files/shelby-s3.ts) for the client, and take what you need from
+[`server.ts`](https://github.com/shelby/shelby-quickstart/blob/c2a99052d827cdc68404ca549a419286957cdc3c/recipes/share-files/server.ts):
 
 - `GET /link?key=…` signs a `GetObjectCommand` with `getSignedUrl` and returns
   `{ url, expiresIn }`. With `download=1`, it also signs `ResponseContentDisposition`, so
