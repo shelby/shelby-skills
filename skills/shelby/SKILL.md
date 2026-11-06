@@ -50,6 +50,9 @@ without `aws-chunked` checksums. Check the compatibility page before relying on 
 ## Where Shelby differs from S3
 
 <!-- BEGIN SYNC: shelby-quickstart AGENTS.md. Run scripts/sync-quickstart.py, don't edit. -->
+Shelby's API is S3-compatible, so standard S3 clients and code work against it. A few
+behaviours don't match Amazon S3 yet. These rules cover them:
+
 - Use the access key ID (`SHLB…`) and the secret as two different values. Never put the
   API key in both fields; older docs did.
 - Set the region to `default` and use path-style addressing. Don't discover the region
@@ -64,10 +67,14 @@ without `aws-chunked` checksums. Check the compatibility page before relying on 
   one. AWS SDKs retry it by default.
 - Never use `CopyObject`, `aws s3 mv` or `s3.copy`. There's no server-side copy, so
   download and upload again.
-- Never generate presigned URLs or upload from a browser. Neither is supported yet, and
-  there's no CORS. Upload from a server.
+- Presigned URLs are read-only. Sign GET or HEAD for one object, on a server, with
+  region `default`, for at most 7 days. Treat the URL as a password: never log it.
+  Never presign uploads, deletes or listings, and never upload from a browser. CORS
+  isn't configurable, so use presigned URLs as links and media sources, not `fetch()`.
 - In the AWS SDK for JavaScript, delete one key at a time. `DeleteObjectsCommand` fails
   and deletes nothing. boto3's `delete_objects` and the AWS CLI's `delete-objects` work.
+- In the AWS SDK for JavaScript, set `responseChecksumValidation: "WHEN_REQUIRED"` on the
+  client. Without it, presigned GET URLs fail with `501 NotImplemented`.
 - Treat a JavaScript SDK "XML parse error" as a `401`. Authentication errors are plain
   text, not S3 XML.
 - Keep list page sizes at 1,000 or less. Larger values are rejected, not capped.
