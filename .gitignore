@@ -1,0 +1,5 @@
+# Skills installed locally for working on this repository. The plugin installs from the
+# repository root, so anything committed here would ship to every user.
+.agents/
+.claude/skills/
+skills-lock.json
