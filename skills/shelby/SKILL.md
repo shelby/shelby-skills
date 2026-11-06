@@ -10,8 +10,10 @@ wherever compute runs, through an S3-compatible API. Code written for Amazon S3 
 Shelby after a configuration change, except where the rules below say otherwise. Apply
 them while writing the code, not after it fails.
 
-An MCP server, `@shelby-protocol/mcp`, is on its way. Until it's published, use the S3
-API.
+For an agent that reads and writes a bucket itself, with no integration code, Shelby has
+an MCP server, `@shelby-protocol/mcp`. It authenticates with an agent key
+(`shelbyagent_…`), not the S3 keys below. Set it up from
+<https://docs.shelby.xyz/tools/mcp.md>.
 
 ## Connect
 
