@@ -1,6 +1,6 @@
 ---
 name: shelby
-description: Store, read and share data on Shelby, a data platform with an S3-compatible API, using the AWS CLI, boto3, the AWS SDK for JavaScript, rclone, DuckDB or another S3 client. Use when the user mentions Shelby or s3.beta.shelby.xyz, asks about Shelby in general, is starting a Shelby integration, wants to add Shelby storage to a project, share Shelby files through download links, migrate S3, R2 or MinIO code or data to Shelby, train or query on data stored in Shelby, or is debugging a Shelby S3 error.
+description: Store, read and share data on Shelby, a data platform with an S3-compatible API, using the AWS CLI, boto3, the AWS SDK for JavaScript, rclone, DuckDB or another S3 client. Use when the user mentions Shelby, s3.beta.shelby.xyz or SHELBY_* credentials, asks about Shelby in general, is starting a Shelby integration, wants to add Shelby storage to a project, share Shelby files through download links, migrate S3, R2 or MinIO code or data to Shelby, train or query on data stored in Shelby, or is debugging a Shelby S3 error, even if they don't mention S3.
 ---
 
 # Shelby
