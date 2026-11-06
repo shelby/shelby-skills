@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@07a6ef51967c, clients/javascript/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@c2a99052d827, clients/javascript/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # JavaScript (AWS SDK v3)
 
@@ -38,7 +38,7 @@ what it wrote, and exits 0 only when every step passes.
 npm install @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner
 ```
 
-Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/clients/javascript/shelby-s3.ts) and import `s3` and `Bucket` from it. It's a standard
+Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/c2a99052d827cdc68404ca549a419286957cdc3c/clients/javascript/shelby-s3.ts) and import `s3` and `Bucket` from it. It's a standard
 `S3Client` with these settings:
 
 ```ts
@@ -88,7 +88,7 @@ and keep it out of logs.
   configurable. For browser downloads, sign a link on your server and use it as a link, a
   download, or an `<img>` or `<video>` source. Don't build on `fetch()` of the endpoint
   from another origin. Browsers can't upload: there are no presigned uploads.
-  [`recipes/share-files`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files) is a small server that hands out
+  [`recipes/share-files`](https://github.com/shelby/shelby-quickstart/blob/c2a99052d827cdc68404ca549a419286957cdc3c/recipes/share-files) is a small server that hands out
   links to files and folders.
 - **Presigned URLs are for downloads only.** Sign `GetObjectCommand` or
   `HeadObjectCommand`, with `responseChecksumValidation: "WHEN_REQUIRED"` on the client.
