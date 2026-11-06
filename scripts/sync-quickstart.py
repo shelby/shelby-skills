@@ -37,6 +37,7 @@ SOURCES = {
     "clients/duckdb/README.md": "duckdb.md",
     "recipes/migrate-from-s3/README.md": "migrate-from-s3.md",
     "recipes/ml-training/README.md": "ml-training.md",
+    "recipes/share-files/README.md": "share-files.md",
 }
 # The section's heading in the quickstart's AGENTS.md: current name first, then the
 # name it had before 3847fd0, so commits on either side of the rename still sync.

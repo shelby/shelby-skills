@@ -8,7 +8,7 @@ works the first time, including the places where Shelby still differs from Amazo
 
 | Skill | Use it for |
 | --- | --- |
-| [shelby](skills/shelby/SKILL.md) | Storing and reading data with the AWS CLI, boto3, the AWS SDK for JavaScript, rclone or DuckDB. Migrating from S3, R2 or MinIO. Training data and checkpoints. |
+| [shelby](skills/shelby/SKILL.md) | Storing and reading data with the AWS CLI, boto3, the AWS SDK for JavaScript, rclone or DuckDB. Migrating from S3, R2 or MinIO. Training data and checkpoints. Download links to files and folders. |
 
 ## Install
 
