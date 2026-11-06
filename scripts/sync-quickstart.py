@@ -11,6 +11,8 @@ quickstart.lock. Relative links become absolute links to that commit on GitHub.
     python3 scripts/sync-quickstart.py --check        # exit 1 if any are stale (CI)
     python3 scripts/sync-quickstart.py --ref <commit> # move the pin, then sync
 
+--check never writes, so --check --ref <commit> shows what moving the pin would change.
+
 Reads from GitHub. Set QUICKSTART_DIR to a local clone to read from it instead; the
 clone must have the pinned commit.
 """
@@ -108,17 +110,19 @@ def render(ref: str) -> dict[Path, str]:
 
 def main() -> int:
     args = sys.argv[1:]
-    if "--ref" in args:
-        LOCK.write_text(args[args.index("--ref") + 1].strip() + "\n")
-    ref = LOCK.read_text().strip()
+    moving = "--ref" in args
+    ref = args[args.index("--ref") + 1].strip() if moving else LOCK.read_text().strip()
+    # The pin is rendered with the rest, so it's written only once every fetch succeeds.
     rendered = render(ref)
+    rendered[LOCK] = ref + "\n"
 
     if "--check" in args:
         stale = [p for p, text in rendered.items() if not p.exists() or p.read_text() != text]
         for path in stale:
             print(f"stale: {path.relative_to(ROOT)}")
         if stale:
-            print(f"run: python3 scripts/sync-quickstart.py (pinned at {ref[:12]})")
+            fix = f"--ref {ref}" if moving else f"(pinned at {ref[:12]})"
+            print(f"run: python3 scripts/sync-quickstart.py {fix}")
             return 1
         print(f"in sync with {REPO}@{ref[:12]}")
         return 0
