@@ -28,11 +28,35 @@ agent at `skills/shelby/SKILL.md`.
 
 ## Where the facts come from
 
-The skill's references and its list of differences from S3 are synced from
-[shelby-quickstart](https://github.com/shelby/shelby-quickstart). Its examples run against
-the hosted endpoint on every change and every night. `quickstart.lock` pins the commit
-they're copied from, a daily workflow proposes moving it to the newest commit whose live
-run passed, and CI fails if the synced files drift. See [AGENTS.md](AGENTS.md).
+The skill's references and its list of differences from S3 aren't written here. They're
+copied from [shelby-quickstart](https://github.com/shelby/shelby-quickstart), whose
+examples run against the hosted endpoint on every change and every night, so the skill
+only states what a live run has shown.
+
+| Synced here | Copied from shelby-quickstart |
+| --- | --- |
+| The block between `BEGIN SYNC` and `END SYNC` in `skills/shelby/SKILL.md` | The "Where Shelby differs from Amazon S3" section of `AGENTS.md` |
+| `skills/shelby/references/*.md` | The client and recipe READMEs listed in `scripts/sync-quickstart.py` |
+
+A change reaches people who have the plugin installed in four steps:
+
+1. **Change shelby-quickstart.** Edit the README or `AGENTS.md` there, never the synced
+   copies here, and merge it. Its `verify` workflow runs every example against the hosted
+   endpoint.
+2. **Move the pin.** `quickstart.lock` names the quickstart commit the synced files come
+   from. Each day the [sync workflow](.github/workflows/sync.yml) opens a pull request that
+   moves it to the newest commit on the quickstart's main whose `verify` run passed. Review
+   and merge it. To move it by hand, run `python3 scripts/sync-quickstart.py --ref <commit>`
+   and commit the lock file with the synced files.
+3. **Release.** A merged sync reaches no one yet: bump the version in
+   `.claude-plugin/plugin.json`, as described under [Releasing](#releasing).
+4. **Plugins update.** The Release workflow tags `v<version>`, and Claude Code installs it
+   for anyone with auto-update on.
+
+CI runs `python3 scripts/sync-quickstart.py --check` and fails if a synced file differs
+from the pinned commit. The sync finds the differences list by its heading, so a change
+that renames that section in the quickstart also needs `HABITS` in
+`scripts/sync-quickstart.py` updated. See [AGENTS.md](AGENTS.md) for the details.
 
 ## Releasing
 
