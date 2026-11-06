@@ -1,0 +1,15 @@
+{
+  "name": "shelby-skills",
+  "description": "Agent skills for Shelby's S3-compatible API.",
+  "owner": {
+    "name": "Shelby",
+    "url": "https://shelby.xyz"
+  },
+  "plugins": [
+    {
+      "name": "shelby",
+      "source": "./",
+      "description": "Store and read data on Shelby through its S3-compatible API."
+    }
+  ]
+}

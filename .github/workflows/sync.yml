@@ -1,0 +1,87 @@
+# Opens a pull request that moves quickstart.lock to the newest shelby-quickstart commit
+# on main whose verify run passed, so the skill only takes facts the live runs checked.
+# It reuses one branch; close the pull request to skip a commit, and the next verified
+# commit opens a new one.
+#
+# Pull requests opened with the workflow's token don't trigger other workflows, so this
+# dispatches check.yml on the branch itself.
+#
+# Repository settings it needs:
+#   Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests"
+name: sync
+
+on:
+  schedule:
+    - cron: "43 8 * * *" # daily, after the quickstart's nightly verify at 07:17 UTC
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync
+
+env:
+  BRANCH: sync/quickstart
+  GH_TOKEN: ${{ github.token }}
+  QUICKSTART: shelby/shelby-quickstart
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Find the newest verified quickstart commit
+        id: target
+        run: |
+          pin=$(cat quickstart.lock)
+          sha=$(gh api "repos/$QUICKSTART/actions/workflows/verify.yml/runs?branch=main&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty')
+          if [ -z "$sha" ]; then
+            echo "No passing verify run on main."
+            exit 0
+          fi
+          # The run must be for a commit on main, and newer than the pin.
+          on_main=$(gh api "repos/$QUICKSTART/compare/$sha...main" --jq .status)
+          ahead=$(gh api "repos/$QUICKSTART/compare/$pin...$sha" --jq .status)
+          if [[ "$on_main" != identical && "$on_main" != ahead ]] || [ "$ahead" != ahead ]; then
+            echo "Nothing newer than ${pin:0:12} has passed verify."
+            exit 0
+          fi
+          if git fetch --depth=1 origin "$BRANCH" 2>/dev/null \
+            && [ "$(git show FETCH_HEAD:quickstart.lock)" = "$sha" ]; then
+            echo "$BRANCH already has ${sha:0:12}."
+            exit 0
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Sync
+        if: steps.target.outputs.sha
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: python3 scripts/sync-quickstart.py --ref "$SHA"
+
+      - name: Open the pull request
+        if: steps.target.outputs.sha
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          title="chore: sync from shelby-quickstart@${SHA:0:12}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add -A
+          git commit -m "$title"
+          git push --force origin "$BRANCH"
+          pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          body="Moves quickstart.lock to [\`${SHA:0:12}\`](https://github.com/$QUICKSTART/commit/$SHA), the newest commit on main whose verify run passed. Changes since the last pin: https://github.com/$QUICKSTART/compare/$(git show HEAD~1:quickstart.lock)...$SHA"
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$title" --body "$body"
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
+          fi
+          gh workflow run check.yml --ref "$BRANCH"

@@ -1,13 +1,17 @@
 ---
-name: shelby-s3
-description: Store and read data on Shelby through its S3-compatible API, using the AWS CLI, boto3, the AWS SDK for JavaScript, rclone, DuckDB or another S3 client. Use when the user mentions Shelby or s3.beta.shelby.xyz, wants to add Shelby storage to a project, migrate S3, R2 or MinIO code or data to Shelby, train or query on data stored in Shelby, or is debugging a Shelby S3 error.
+name: shelby
+description: Store and read data on Shelby, a data platform with an S3-compatible API, using the AWS CLI, boto3, the AWS SDK for JavaScript, rclone, DuckDB or another S3 client. Use when the user mentions Shelby or s3.beta.shelby.xyz, asks about Shelby in general, is starting a Shelby integration, wants to add Shelby storage to a project, migrate S3, R2 or MinIO code or data to Shelby, train or query on data stored in Shelby, or is debugging a Shelby S3 error.
 ---
 
-# Shelby S3 API
+# Shelby
 
-Shelby has an S3-compatible endpoint. Code written for Amazon S3 works with Shelby after
-a configuration change, except where the rules below say otherwise. Apply them while
-writing the code, not after it fails.
+Shelby is a data platform for distributed compute: one place to store and read data from
+wherever compute runs, through an S3-compatible API. Code written for Amazon S3 works with
+Shelby after a configuration change, except where the rules below say otherwise. Apply
+them while writing the code, not after it fails.
+
+An MCP server, `@shelby-protocol/mcp`, is on its way. Until it's published, use the S3
+API.
 
 ## Connect
 
@@ -43,7 +47,7 @@ Other S3 clients usually work if they support path-style addressing and can uplo
 without `aws-chunked` checksums. Check the compatibility page before relying on one:
 <https://docs.shelby.xyz/tools/s3-gateway/compatibility.md>
 
-## Shelby is not quite S3
+## Where Shelby differs from S3
 
 <!-- BEGIN SYNC: shelby-quickstart AGENTS.md. Run scripts/sync-quickstart.py, don't edit. -->
 - Use the access key ID (`SHLB…`) and the secret as two different values. Never put the

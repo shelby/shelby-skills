@@ -1,69 +1,53 @@
+# Releases the version in .claude-plugin/plugin.json. When a change to it reaches main,
+# this tags v<version> and creates a GitHub Release with generated notes. Installed
+# plugins update only when that version changes, so bump it in a pull request to release.
+# Skips versions that are already tagged; run it by hand to retry a failed release.
 name: Release
 
 on:
+  push:
+    branches: [main]
+    paths: [.claude-plugin/plugin.json]
   workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump type"
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+
 jobs:
   release:
-    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Determine next version
+      - name: Read the version
         id: version
         run: |
-          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -n1)
-          if [ -z "$LATEST" ]; then
-            LATEST="v0.0.0"
+          version=v$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "$version is already tagged."
+          else
+            echo "version=$version" >> "$GITHUB_OUTPUT"
           fi
 
-          MAJOR=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f1)
-          MINOR=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f2)
-          PATCH=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f3)
+      - name: Check the synced files
+        if: steps.version.outputs.version
+        run: python3 scripts/sync-quickstart.py --check
 
-          case "${{ inputs.bump }}" in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
-          esac
-
-          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Bumping $LATEST -> $VERSION"
-
-      - name: Create and push tag
+      - name: Tag and release
+        if: steps.version.outputs.version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.version }}" -m "Release ${{ steps.version.outputs.version }}"
-          git push origin "${{ steps.version.outputs.version }}"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" --verify-tag --generate-notes --title "$VERSION"

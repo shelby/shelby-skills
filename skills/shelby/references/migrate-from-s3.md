@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@889de2c8eb9b, recipes/migrate-from-s3/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1a091caa7b13, recipes/migrate-from-s3/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # Migrate from S3
 
@@ -35,7 +35,7 @@ exits 0 only when every step passes.
 ## Migrate your own data
 
 Configure a remote for your source as usual: Amazon S3, Cloudflare R2, MinIO or any S3
-provider. Then copy it to a Shelby remote, set up as in [`clients/rclone`](https://github.com/shelby/shelby-quickstart/blob/889de2c8eb9ba4010931225403dde0292f4e62e4/clients/rclone):
+provider. Then copy it to a Shelby remote, set up as in [`clients/rclone`](https://github.com/shelby/shelby-quickstart/blob/1a091caa7b130d991732cc5250e4875dbe405505/clients/rclone):
 
 ```bash
 rclone copy source:my-bucket "shelby:$SHELBY_BUCKET" --checksum --progress

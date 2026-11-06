@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@889de2c8eb9b, clients/javascript/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1a091caa7b13, clients/javascript/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # JavaScript (AWS SDK v3)
 
@@ -37,7 +37,7 @@ what it wrote, and exits 0 only when every step passes.
 npm install @aws-sdk/client-s3 @aws-sdk/lib-storage
 ```
 
-Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/889de2c8eb9ba4010931225403dde0292f4e62e4/clients/javascript/shelby-s3.ts) and import `s3` and `Bucket` from it. It's a standard
+Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/1a091caa7b130d991732cc5250e4875dbe405505/clients/javascript/shelby-s3.ts) and import `s3` and `Bucket` from it. It's a standard
 `S3Client` with these settings:
 
 ```ts

@@ -1,11 +1,12 @@
-# Fails if the synced parts of skills/shelby-s3 differ from the shelby-quickstart commit
-# pinned in quickstart.lock.
+# Fails if the synced parts of skills/shelby differ from the shelby-quickstart commit
+# pinned in quickstart.lock, or if the plugin doesn't validate.
 name: check
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch: # sync.yml runs it on its pull requests
 
 permissions:
   contents: read
@@ -17,3 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 scripts/sync-quickstart.py --check
+
+  # Validates the marketplace, the plugin manifest and the skill. Not --strict: it warns
+  # that Claude Code doesn't load a CLAUDE.md at the plugin root, and this one is for
+  # contributors, not for the plugin.
+  plugin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: npx --yes @anthropic-ai/claude-code@2.1.308 plugin validate .

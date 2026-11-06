@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@889de2c8eb9b, clients/python/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1a091caa7b13, clients/python/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # Python (boto3)
 
@@ -33,7 +33,7 @@ it wrote, and exits 0 only when every step passes.
 
 ## Use it in your project
 
-Copy [`shelby_s3.py`](https://github.com/shelby/shelby-quickstart/blob/889de2c8eb9ba4010931225403dde0292f4e62e4/clients/python/shelby_s3.py) and import `s3` and `bucket` from it. It's a standard
+Copy [`shelby_s3.py`](https://github.com/shelby/shelby-quickstart/blob/1a091caa7b130d991732cc5250e4875dbe405505/clients/python/shelby_s3.py) and import `s3` and `bucket` from it. It's a standard
 boto3 client with these settings:
 
 ```python

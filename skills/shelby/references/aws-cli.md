@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@889de2c8eb9b, clients/aws-cli/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1a091caa7b13, clients/aws-cli/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # AWS CLI
 

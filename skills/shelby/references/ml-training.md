@@ -1,6 +1,6 @@
-<!-- Synced from shelby/shelby-quickstart@889de2c8eb9b, recipes/ml-training/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1a091caa7b13, recipes/ml-training/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
-# ML training
+# Model training
 
 Stream training data from Shelby, write checkpoints to Shelby, and resume training on
 another machine from the last checkpoint. The data stays put while the compute moves.
@@ -54,9 +54,9 @@ bucket, deletes what it wrote, and exits 0 only when every step passes.
   inside each worker. boto3 clients can't be shared across processes.
 - **Big checkpoints need a part size.** Over 5 GiB, a single `put_object` is refused. Use a
   multipart upload, and choose a part size for Shelby's 3,000-part limit (see
-  [`clients/python`](https://github.com/shelby/shelby-quickstart/blob/889de2c8eb9ba4010931225403dde0292f4e62e4/clients/python)).
+  [`clients/python`](https://github.com/shelby/shelby-quickstart/blob/1a091caa7b130d991732cc5250e4875dbe405505/clients/python)).
 
-[`shelby_s3.py`](https://github.com/shelby/shelby-quickstart/blob/889de2c8eb9ba4010931225403dde0292f4e62e4/recipes/ml-training/shelby_s3.py) is the same client as in `clients/python`.
+[`shelby_s3.py`](https://github.com/shelby/shelby-quickstart/blob/1a091caa7b130d991732cc5250e4875dbe405505/recipes/ml-training/shelby_s3.py) is the same client as in `clients/python`.
 
 Docs: [Python quickstart](https://docs.shelby.xyz/tools/s3-gateway/quickstarts/python) ·
 [Compatibility](https://docs.shelby.xyz/tools/s3-gateway/compatibility)

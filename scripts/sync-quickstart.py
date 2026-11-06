@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Sync the shelby-s3 skill from shelby-quickstart.
+"""Sync the shelby skill from shelby-quickstart.
 
 The quickstart's examples run against the live endpoint in CI, so they are the source
 of truth for client settings and for where Shelby differs from S3. This copies their
-READMEs into skills/shelby-s3/references/, and the "Shelby is not quite S3" list from
-the quickstart's AGENTS.md into skills/shelby-s3/SKILL.md, at the commit pinned in
+READMEs into skills/shelby/references/, and the "Shelby is not quite S3" list from
+the quickstart's AGENTS.md into skills/shelby/SKILL.md, at the commit pinned in
 quickstart.lock. Relative links become absolute links to that commit on GitHub.
 
     python3 scripts/sync-quickstart.py                # rewrite the synced files
@@ -25,7 +25,7 @@ from pathlib import Path
 
 REPO = "shelby/shelby-quickstart"
 ROOT = Path(__file__).resolve().parent.parent
-SKILL = ROOT / "skills" / "shelby-s3"
+SKILL = ROOT / "skills" / "shelby"
 LOCK = ROOT / "quickstart.lock"
 
 # Quickstart file -> reference file name.

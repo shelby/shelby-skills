@@ -2,41 +2,44 @@
 
 Agent skills for [Shelby](https://shelby.xyz)'s S3-compatible API. They give AI coding
 agents (Claude Code, Cursor, Codex and others) what they need to write Shelby code that
-works the first time. That includes the places where habits from Amazon S3 break.
+works the first time, including the places where Shelby still differs from Amazon S3.
 
 ## Skills
 
 | Skill | Use it for |
 | --- | --- |
-| [shelby-s3](skills/shelby-s3/SKILL.md) | Storing and reading data with the AWS CLI, boto3, the AWS SDK for JavaScript, rclone or DuckDB. Migrating from S3, R2 or MinIO. Training data and checkpoints. |
-
-> **Retired:** the `shelby-sdk`, `shelby-cli` and `shelby-media` skills, along with the
-> packages they covered, which are deprecated in favour of the S3 API. They're in the
-> history at [`1a32c67`](https://github.com/shelby/shelby-skills/tree/1a32c67435a80a669fb259618b29ba4de44955ca).
+| [shelby](skills/shelby/SKILL.md) | Storing and reading data with the AWS CLI, boto3, the AWS SDK for JavaScript, rclone or DuckDB. Migrating from S3, R2 or MinIO. Training data and checkpoints. |
 
 ## Install
 
-Symlink the repository into your Claude Code skills directory:
+In Claude Code, add this repository as a plugin marketplace and install the plugin:
 
-```bash
-ln -s /path/to/shelby-skills ~/.claude/skills/shelby-skills
+```
+/plugin marketplace add shelby/shelby-skills
+/plugin install shelby@shelby-skills
 ```
 
-Then invoke the skill as `/shelby-skills:shelby-s3`, or let the agent load it when you
-mention Shelby. For other agents, point them at `skills/shelby-s3/SKILL.md`.
+The agent loads the skill when you mention Shelby, or you can invoke it as
+`/shelby:shelby`. To get new releases automatically, turn on auto-update for the
+`shelby-skills` marketplace under `/plugin` > Marketplaces.
+
+For other agents, copy `skills/shelby` into the agent's skills directory, or point the
+agent at `skills/shelby/SKILL.md`.
 
 ## Where the facts come from
 
-The skill's references and its list of S3 habits that break on Shelby are synced from
+The skill's references and its list of differences from S3 are synced from
 [shelby-quickstart](https://github.com/shelby/shelby-quickstart). Its examples run against
-the hosted endpoint every night. `quickstart.lock` pins the commit they're copied from, and
-CI fails if they drift. See [AGENTS.md](AGENTS.md) to update them.
+the hosted endpoint on every change and every night. `quickstart.lock` pins the commit
+they're copied from, a daily workflow proposes moving it to the newest commit whose live
+run passed, and CI fails if the synced files drift. See [AGENTS.md](AGENTS.md).
 
 ## Releasing
 
-Versions follow semver and are tracked as git tags. Trigger the
-[Release workflow](.github/workflows/release.yml) with a bump type, or run
-`scripts/release.sh [major|minor|patch]` locally.
+The version in `.claude-plugin/plugin.json` is the release: installed plugins update only
+when it changes. Bump it in a pull request, following semver. When it merges, the
+[Release workflow](.github/workflows/release.yml) tags `v<version>` and creates a GitHub
+Release.
 
 ## License
 
