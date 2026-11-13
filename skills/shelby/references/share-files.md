@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@07a6ef51967c, recipes/share-files/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1db759daf5b4, recipes/share-files/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # Share files
 
@@ -15,7 +15,7 @@ make share-files    # installs dependencies on the first run
 
 Or, in this folder: `npm ci`, then `node --env-file=../../.env share.ts`.
 
-One run plays three parts: the server in [`server.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files/server.ts), the app's user asking
+One run plays three parts: the server in [`server.ts`](https://github.com/shelby/shelby-quickstart/blob/1db759daf5b48cfa1444a7854cf1b6b7292809cf/recipes/share-files/server.ts), the app's user asking
 it for links, and the person they share with, who opens the links with plain `fetch` and
 no credentials. The server listens on `127.0.0.1` only and stops at the end. Links and
 cookies are never printed. The run writes only under `quickstart/share-files/<run-id>/`
@@ -43,8 +43,8 @@ in your bucket, deletes what it wrote, and exits 0 only when every step passes.
 npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner @aws-sdk/util-format-url
 ```
 
-Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files/shelby-s3.ts) for the client, and take what you need from
-[`server.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files/server.ts):
+Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/1db759daf5b48cfa1444a7854cf1b6b7292809cf/recipes/share-files/shelby-s3.ts) for the client, and take what you need from
+[`server.ts`](https://github.com/shelby/shelby-quickstart/blob/1db759daf5b48cfa1444a7854cf1b6b7292809cf/recipes/share-files/server.ts):
 
 - `GET /link?key=…` signs a `GetObjectCommand` with `getSignedUrl` and returns
   `{ url, expiresIn }`. With `download=1`, it also signs `ResponseContentDisposition`, so
@@ -94,8 +94,8 @@ your pages. Uploads still go through your server: there are no presigned uploads
   CDN in front of these links.
 - **A link is a bearer credential.** Anyone who has it can read the file until it
   expires, so keep links out of logs, analytics and error reports. You can't revoke one
-  link: disabling the access key revokes all of its links.
-- **Each GET counts toward your account's concurrent downloads**, range requests
+  link: deleting the access key revokes all of its links.
+- **Each GET counts toward your organization's concurrent downloads**, range requests
   included. Past the limit, Shelby answers `503 SlowDown` with `Retry-After: 1`. HEAD
   doesn't count.
 - **Folder shares are a Shelby extension.** The listing is S3 XML, not a folder page.
