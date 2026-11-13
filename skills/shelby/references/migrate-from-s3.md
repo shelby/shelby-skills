@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@07a6ef51967c, recipes/migrate-from-s3/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1db759daf5b4, recipes/migrate-from-s3/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # Migrate from S3
 
@@ -35,7 +35,7 @@ exits 0 only when every step passes.
 ## Migrate your own data
 
 Configure a remote for your source as usual: Amazon S3, Cloudflare R2, MinIO or any S3
-provider. Then copy it to a Shelby remote, set up as in [`clients/rclone`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/clients/rclone):
+provider. Then copy it to a Shelby remote, set up as in [`clients/rclone`](https://github.com/shelby/shelby-quickstart/blob/1db759daf5b48cfa1444a7854cf1b6b7292809cf/clients/rclone):
 
 ```bash
 rclone copy source:my-bucket "shelby:$SHELBY_BUCKET" --checksum --progress
@@ -54,7 +54,8 @@ rclone check source:my-bucket "shelby:$SHELBY_BUCKET" --one-way
 
 ## Query the copy in place
 
-Scope the Shelby secret to your bucket, and DuckDB can read both sides in one session:
+Create a DuckDB secret scoped to your bucket, and DuckDB can read both sides in one
+session:
 
 ```sql
 CREATE SECRET shelby (
@@ -69,7 +70,9 @@ CREATE SECRET shelby (
 ```
 
 Paths under `s3://your-bucket-name/` use Shelby. Every other `s3://` path uses DuckDB's
-default S3 settings.
+default S3 settings. Each access key reaches only its own bucket, so to read several
+Shelby buckets, create one secret per bucket, each with that bucket's access key and its
+own `SCOPE`.
 
 Docs: [Migrating from S3](https://docs.shelby.xyz/tools/s3-gateway/migrating) ·
 [rclone quickstart](https://docs.shelby.xyz/tools/s3-gateway/quickstarts/rclone) ·

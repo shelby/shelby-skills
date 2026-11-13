@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@07a6ef51967c, clients/duckdb/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1db759daf5b4, clients/duckdb/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # DuckDB
 

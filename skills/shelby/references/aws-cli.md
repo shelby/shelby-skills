@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@07a6ef51967c, clients/aws-cli/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1db759daf5b4, clients/aws-cli/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # AWS CLI
 
@@ -39,15 +39,20 @@ aws configure set aws_secret_access_key "$SHELBY_SECRET_ACCESS_KEY" --profile sh
 aws configure set region default --profile shelby
 aws configure set endpoint_url https://s3.beta.shelby.xyz --profile shelby
 aws configure set s3.addressing_style path --profile shelby
+aws configure set s3.multipart_chunksize 10MB --profile shelby
 aws configure set request_checksum_calculation when_required --profile shelby
 ```
 
 Then pass `--profile shelby`, or `export AWS_PROFILE=shelby`. Exported `AWS_ACCESS_KEY_ID`
 and `AWS_SECRET_ACCESS_KEY` variables take precedence over a profile, so unset them if
-they're set for another account.
+they're set for something other than Shelby.
 
 `request_checksum_calculation` is required. AWS CLI 2.23 and later send uploads in
 `aws-chunked` framing by default, which Shelby refuses with `501 NotImplemented`.
+
+`s3.multipart_chunksize` uploads large files in 10 MiB parts, up from the CLI's default of
+8 MiB. Each part counts as at least 10 MiB of storage, so smaller parts make a file count
+as more than it holds. See [the 10 MiB minimum](https://docs.shelby.xyz/protocol/pricing#the-10-mib-minimum).
 
 To let someone download an object without your credentials, presign a link. It works for
 GET and HEAD, for up to 7 days (604800 seconds):
@@ -68,9 +73,9 @@ and keep it out of logs. Open it in a browser, or use it as a link or an `<img>`
   server-side copy. Download and upload again.
 - **Presigned URLs are for downloads only.** `aws s3 presign` links work for GET and HEAD,
   and only when the profile's region is `default`. There are no presigned uploads, and
-  you can't revoke one link: disabling the key revokes all of its links.
-- **Files over about 23 GiB need a larger part size.** Shelby allows 3,000 parts per
-  upload, and the CLI's default part size is 8 MiB:
+  you can't revoke one link: deleting the access key revokes all of its links.
+- **Files over about 29 GiB need a larger part size.** Shelby allows 3,000 parts per
+  upload, and the profile above uses 10 MiB parts:
   `aws configure set s3.multipart_chunksize 64MB --profile shelby`.
 - **A `401` shows no error code.** Shelby's authentication errors are plain text. Run with
   `--debug` to see the message, or run `make doctor`.

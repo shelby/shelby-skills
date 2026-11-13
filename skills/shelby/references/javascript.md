@@ -1,4 +1,4 @@
-<!-- Synced from shelby/shelby-quickstart@07a6ef51967c, clients/javascript/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
+<!-- Synced from shelby/shelby-quickstart@1db759daf5b4, clients/javascript/README.md. Edit it there, then run scripts/sync-quickstart.py. -->
 
 # JavaScript (AWS SDK v3)
 
@@ -38,7 +38,7 @@ what it wrote, and exits 0 only when every step passes.
 npm install @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner
 ```
 
-Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/clients/javascript/shelby-s3.ts) and import `s3` and `Bucket` from it. It's a standard
+Copy [`shelby-s3.ts`](https://github.com/shelby/shelby-quickstart/blob/1db759daf5b48cfa1444a7854cf1b6b7292809cf/clients/javascript/shelby-s3.ts) and import `s3` and `Bucket` from it. It's a standard
 `S3Client` with these settings:
 
 ```ts
@@ -47,7 +47,7 @@ export const s3 = new S3Client({
   region: "default",
   credentials: {
     accessKeyId: process.env.SHELBY_ACCESS_KEY_ID!,          // starts with SHLB
-    secretAccessKey: process.env.SHELBY_SECRET_ACCESS_KEY!,  // the console's "API key"
+    secretAccessKey: process.env.SHELBY_SECRET_ACCESS_KEY!,  // the same access key's secret
   },
   forcePathStyle: true,
   requestChecksumCalculation: "WHEN_REQUIRED",
@@ -88,11 +88,15 @@ and keep it out of logs.
   configurable. For browser downloads, sign a link on your server and use it as a link, a
   download, or an `<img>` or `<video>` source. Don't build on `fetch()` of the endpoint
   from another origin. Browsers can't upload: there are no presigned uploads.
-  [`recipes/share-files`](https://github.com/shelby/shelby-quickstart/blob/07a6ef51967c2ffe29e7b9a8e29ea2f4923860ae/recipes/share-files) is a small server that hands out
+  [`recipes/share-files`](https://github.com/shelby/shelby-quickstart/blob/1db759daf5b48cfa1444a7854cf1b6b7292809cf/recipes/share-files) is a small server that hands out
   links to files and folders.
 - **Presigned URLs are for downloads only.** Sign `GetObjectCommand` or
   `HeadObjectCommand`, with `responseChecksumValidation: "WHEN_REQUIRED"` on the client.
 - **`CopyObjectCommand` fails with `501`.** Download and upload again.
+- **Set `partSize` to at least 10 MiB.** `Upload` from `@aws-sdk/lib-storage` defaults to
+  5 MiB parts, and each part counts as at least 10 MiB of storage
+  ([the 10 MiB minimum](https://docs.shelby.xyz/protocol/pricing#the-10-mib-minimum)). 64 MiB parts fit files up to
+  about 187 GiB within Shelby's 3,000-part limit.
 - **A `401` can surface as an XML parse error.** Shelby's authentication errors are plain
   text. Run `make doctor` to see the reason.
 - **Set the region yourself.** `GetBucketLocation` returns the object listing on Shelby,
